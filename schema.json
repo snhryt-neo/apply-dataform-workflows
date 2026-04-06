@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dataform Release / Workflow Configuration",
+  "description": "SSoT for applying Dataform release/workflow configurations via the REST API.",
+  "type": "object",
+  "required": ["repository", "release_configs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "repository": {
+      "type": "string",
+      "description": "Dataform repository name.",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
+    },
+    "release_configs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "git_ref"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+          "git_ref": { "type": "string" },
+          "disabled": { "type": "boolean" },
+          "schedule": { "type": "string" },
+          "timezone": { "type": "string" },
+          "compile_override": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "default_database": { "type": "string" },
+              "default_schema": { "type": "string" },
+              "schema_suffix": { "type": "string" },
+              "table_prefix": { "type": "string" },
+              "vars": {
+                "type": "object",
+                "additionalProperties": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "workflow_configs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "release_config", "targets"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+          "release_config": { "type": "string" },
+          "disabled": { "type": "boolean" },
+          "schedule": { "type": "string" },
+          "timezone": { "type": "string" },
+          "targets": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "tags": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+              "actions": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 1
+              },
+              "is_all": { "const": true }
+            },
+            "oneOf": [
+              { "required": ["tags"] },
+              { "required": ["actions"] },
+              { "required": ["is_all"] }
+            ]
+          },
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "include_dependencies": { "type": "boolean" },
+              "include_dependents": { "type": "boolean" },
+              "full_refresh": { "type": "boolean" },
+              "service_account": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

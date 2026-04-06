@@ -1,0 +1,22 @@
+{
+  "repository": "my-dataform-repo",
+  "release_configs": [
+    {
+      "id": "production",
+      "git_ref": "main",
+      "schedule": "0 0 * * *",
+      "timezone": "Asia/Tokyo"
+    }
+  ],
+  "workflow_configs": [
+    {
+      "id": "daily-run",
+      "release_config": "production",
+      "schedule": "0 3 * * *",
+      "timezone": "Asia/Tokyo",
+      "targets": {
+        "is_all": true
+      }
+    }
+  ]
+}

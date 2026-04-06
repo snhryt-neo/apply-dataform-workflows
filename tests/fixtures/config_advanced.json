@@ -1,0 +1,49 @@
+{
+  "repository": "my-dataform-repo",
+  "release_configs": [
+    {
+      "id": "production",
+      "git_ref": "main",
+      "schedule": "0 0 * * *",
+      "timezone": "Asia/Tokyo"
+    },
+    {
+      "id": "development",
+      "git_ref": "develop",
+      "compile_override": {
+        "default_database": "my-project-dev",
+        "schema_suffix": "_dev",
+        "vars": {
+          "env": "development"
+        }
+      }
+    }
+  ],
+  "workflow_configs": [
+    {
+      "id": "mart-daily",
+      "release_config": "production",
+      "schedule": "0 3 * * *",
+      "timezone": "Asia/Tokyo",
+      "targets": {
+        "actions": ["users"]
+      },
+      "options": {
+        "include_dependencies": true
+      }
+    },
+    {
+      "id": "staging-refresh",
+      "release_config": "development",
+      "schedule": "0 6 * * 1-5",
+      "timezone": "Asia/Tokyo",
+      "targets": {
+        "tags": ["staging", "experiment"]
+      },
+      "options": {
+        "full_refresh": true,
+        "service_account": "workflow-sa@test-project.iam.gserviceaccount.com"
+      }
+    }
+  ]
+}

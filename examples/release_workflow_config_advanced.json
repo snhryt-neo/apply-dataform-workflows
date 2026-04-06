@@ -1,0 +1,64 @@
+{
+  "$schema": "./schema.json",
+  "repository": "my-dataform-repo",
+  "release_configs": [
+    {
+      "id": "production",
+      "git_ref": "main",
+      "schedule": "0 0 * * *",
+      "timezone": "Asia/Tokyo"
+    },
+    {
+      "id": "development",
+      "git_ref": "develop",
+      "schedule": "0 0 * * *",
+      "timezone": "Asia/Tokyo",
+      "compile_override": {
+        "default_database": "my-project-dev",
+        "vars": {
+          "env": "development"
+        }
+      }
+    }
+  ],
+  "workflow_configs": [
+    {
+      "id": "daily-actions",
+      "release_config": "production",
+      "schedule": "0 3 * * *",
+      "timezone": "Asia/Tokyo",
+      "targets": {
+        "actions": [
+          "users",
+          "orders"
+        ]
+      },
+      "options": {
+        "include_dependencies": true
+      }
+    },
+    {
+      "id": "daily-tags",
+      "release_config": "production",
+      "schedule": "0 4 * * *",
+      "timezone": "Asia/Tokyo",
+      "targets": {
+        "tags": [
+          "daily"
+        ]
+      },
+      "options": {
+        "full_refresh": true,
+        "include_dependents": true
+      }
+    },
+    {
+      "id": "dev-all",
+      "release_config": "development",
+      "disabled": true,
+      "targets": {
+        "is_all": true
+      }
+    }
+  ]
+}

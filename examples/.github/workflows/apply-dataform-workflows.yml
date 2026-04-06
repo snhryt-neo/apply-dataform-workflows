@@ -1,0 +1,55 @@
+# Example caller workflow — copy this file to .github/workflows/ in your repository
+#
+# Triggers on:
+#   - push to main → apply release / workflow configurations and compile releases
+#   - manual dispatch → apply with optional dry-run
+
+name: Apply Dataform Release / Workflow Configurations
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run — show what the action would deploy without making changes"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: "projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/<POOL_ID>/providers/<PROVIDER_ID>"
+          service_account: "<SERVICE_ACCOUNT_NAME>@<PROJECT_ID>.iam.gserviceaccount.com"
+
+      - name: Apply Dataform release / workflow configurations
+        uses: snhryt-neo/deploy-dataform-config@v1
+        with:
+          dry_run: ${{ inputs.dry_run || 'false' }}
+          compile: "true" # compile releases and update releaseCompilationResult
+
+
+          # sync_delete: false
+          # set to false to skip deleting release/workflow configs not in JSON
+
+          # config_file: "/path/to/your/json"
+          # defaults to release_workflow_config.json
+
+          # workflow_settings_file: "/path/to/your/workflow_settings.yaml"
+          # custom Dataform setting file path
+
+          # project_id: ""
+          # location: ""
+          # defaults to `defaultProject` / `defaultLocation` in workflow_settings.yaml
+          # multi-region locations are mapped automatically:
+          # US -> us-central1
+          # EU -> europe-west1

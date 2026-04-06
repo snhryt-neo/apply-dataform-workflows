@@ -1,0 +1,13 @@
+{
+  "repository": "my-dataform-repo",
+  "release_configs": [
+    {
+      "id": "production",
+      "git_ref": "main"
+    },
+    {
+      "id": "production",
+      "git_ref": "develop"
+    }
+  ]
+}

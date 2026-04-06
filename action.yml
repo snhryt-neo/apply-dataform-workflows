@@ -1,0 +1,88 @@
+name: "Apply Dataform Release / Workflow Configurations"
+description: "Apply Dataform release/workflow configurations as defined in a JSON SSoT file."
+branding:
+  icon: "database"
+  color: "blue"
+
+inputs:
+  config_file:
+    description: "Path to the JSON SSoT configuration file"
+    required: false
+    default: "release_workflow_config.json"
+  workflow_settings_file:
+    description: "Path to Dataform workflow_settings.yaml (used to resolve project_id and location)"
+    required: false
+    default: "workflow_settings.yaml"
+  project_id:
+    description: "Google Cloud project ID. If omitted, read from workflow_settings.yaml defaultProject"
+    required: false
+    default: ""
+  location:
+    description: "Google Cloud location/region. If omitted, read from workflow_settings.yaml defaultLocation"
+    required: false
+    default: ""
+  compile:
+    description: "If true, compile each release config and update releaseCompilationResult after upsert"
+    required: false
+    default: "true"
+  sync_delete:
+    description: "If true, delete release/workflow configs from Google Cloud that are not in the config file"
+    required: false
+    default: "true"
+  dry_run:
+    description: "If true, only show what would be deployed without making changes"
+    required: false
+    default: "false"
+outputs:
+  release_configs_created:
+    description: "Comma-separated list of release config IDs that were created"
+    value: ${{ steps.deploy.outputs.release_configs_created }}
+  release_configs_updated:
+    description: "Comma-separated list of release config IDs that were updated"
+    value: ${{ steps.deploy.outputs.release_configs_updated }}
+  release_configs_failed:
+    description: "Comma-separated list of release config IDs that failed to deploy"
+    value: ${{ steps.deploy.outputs.release_configs_failed }}
+  release_configs_deleted:
+    description: "Comma-separated list of release config IDs that were deleted (not in config file)"
+    value: ${{ steps.deploy.outputs.release_configs_deleted }}
+  release_configs_delete_failed:
+    description: "Comma-separated list of release config IDs that failed to delete"
+    value: ${{ steps.deploy.outputs.release_configs_delete_failed }}
+  workflow_configs_created:
+    description: "Comma-separated list of workflow config IDs that were created"
+    value: ${{ steps.deploy.outputs.workflow_configs_created }}
+  workflow_configs_updated:
+    description: "Comma-separated list of workflow config IDs that were updated"
+    value: ${{ steps.deploy.outputs.workflow_configs_updated }}
+  workflow_configs_failed:
+    description: "Comma-separated list of workflow config IDs that failed to deploy"
+    value: ${{ steps.deploy.outputs.workflow_configs_failed }}
+  workflow_configs_deleted:
+    description: "Comma-separated list of workflow config IDs that were deleted (not in config file)"
+    value: ${{ steps.deploy.outputs.workflow_configs_deleted }}
+  workflow_configs_delete_failed:
+    description: "Comma-separated list of workflow config IDs that failed to delete"
+    value: ${{ steps.deploy.outputs.workflow_configs_delete_failed }}
+  deployment_status:
+    description: "Overall deployment status: success, partial_success, or failure"
+    value: ${{ steps.deploy.outputs.deployment_status }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+
+    - name: Apply Dataform release / workflow configurations
+      id: deploy
+      shell: bash
+      env:
+        DRY_RUN: ${{ inputs.dry_run }}
+        DO_COMPILE: ${{ inputs.compile }}
+        SYNC_DELETE: ${{ inputs.sync_delete }}
+        CONFIG_FILE: ${{ inputs.config_file }}
+        WORKFLOW_SETTINGS: ${{ inputs.workflow_settings_file }}
+        PROJECT_ID: ${{ inputs.project_id }}
+        LOCATION: ${{ inputs.location }}
+      run: uv run --project "${{ github.action_path }}" python -m apply_dataform_workflows.deploy

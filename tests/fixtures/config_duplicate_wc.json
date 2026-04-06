@@ -1,0 +1,25 @@
+{
+  "repository": "my-dataform-repo",
+  "release_configs": [
+    {
+      "id": "production",
+      "git_ref": "main"
+    }
+  ],
+  "workflow_configs": [
+    {
+      "id": "daily-run",
+      "release_config": "production",
+      "targets": {
+        "is_all": true
+      }
+    },
+    {
+      "id": "daily-run",
+      "release_config": "production",
+      "targets": {
+        "is_all": true
+      }
+    }
+  ]
+}
