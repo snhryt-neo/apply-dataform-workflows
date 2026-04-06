@@ -22,7 +22,7 @@
 
 ```json:
 {
-  "$schema": "./schema.json",
+  "$schema": "https://cdn.jsdelivr.net/gh/snhryt-neo/apply-dataform-workflows@v1/schema.json",
   "repository": "my-dataform-repo",
   "release_configs": [
     {
@@ -138,13 +138,13 @@ sequenceDiagram
 
 ## JSON リファレンス
 
-`"$schema": "./schema.json"` を設定ファイルに追加すると、エディタで補完が効きます。完全なスキーマは [`schema.json`](./schema.json) を参照してください。
+`"$schema": "https://cdn.jsdelivr.net/gh/snhryt-neo/apply-dataform-workflows@v1/schema.json"` を設定ファイルに追加すると、エディタで補完が効きます。完全なスキーマは [`schema.json`](./schema.json) を参照してください。
 
 ### トップレベルフィールド
 
 | フィールド | 必須 | 説明 |
 |-----------|:----:|------|
-| `$schema` | | エディタ補完用の JSON Schema パス |
+| `$schema` | | エディタ補完用の JSON Schema URL |
 | `repository` | ✅ | Dataform リポジトリ名 |
 | `release_configs` | ✅ | リリース構成オブジェクトの配列 |
 | `workflow_configs` | | ワークフロー構成オブジェクトの配列 |
