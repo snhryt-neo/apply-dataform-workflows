@@ -55,7 +55,7 @@
 
 ```yaml
 - name: Apply Dataform release / workflow configurations
-  uses: snhryt-neo/deploy-dataform-config@v1
+  uses: snhryt-neo/apply-dataform-workflows@v1
 ```
 
 👉 完全なワークフローの例は [こちら](examples/.github/workflows/apply-dataform-workflows.yml) を参照してください。

@@ -85,4 +85,4 @@ runs:
         WORKFLOW_SETTINGS: ${{ inputs.workflow_settings_file }}
         PROJECT_ID: ${{ inputs.project_id }}
         LOCATION: ${{ inputs.location }}
-      run: uv run --project "${{ github.action_path }}" python -m apply_dataform_workflows.deploy
+      run: uv run --project "${{ github.action_path }}" python -m apply_dataform_workflows.apply
