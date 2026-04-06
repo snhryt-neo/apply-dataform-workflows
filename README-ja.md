@@ -22,7 +22,7 @@
 
 ```json:
 {
-  "$schema": "https://cdn.jsdelivr.net/gh/snhryt-neo/apply-dataform-workflows@v1/schema.json",
+  "$schema": "https://raw.githubusercontent.com/snhryt-neo/apply-dataform-workflows/v1/schema.json",
   "repository": "my-dataform-repo",
   "release_configs": [
     {
@@ -138,7 +138,7 @@ sequenceDiagram
 
 ## JSON リファレンス
 
-`"$schema": "https://cdn.jsdelivr.net/gh/snhryt-neo/apply-dataform-workflows@v1/schema.json"` を設定ファイルに追加すると、エディタで補完が効きます。完全なスキーマは [`schema.json`](./schema.json) を参照してください。
+`"$schema": "https://raw.githubusercontent.com/snhryt-neo/apply-dataform-workflows/v1/schema.json"` を設定ファイルに追加すると、エディタで補完が効きます。完全なスキーマは [`schema.json`](./schema.json) を参照してください。
 
 ### トップレベルフィールド
 

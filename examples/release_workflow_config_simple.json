@@ -1,5 +1,5 @@
 {
-  "$schema": "https://cdn.jsdelivr.net/gh/snhryt-neo/apply-dataform-workflows@v1/schema.json",
+  "$schema": "https://raw.githubusercontent.com/snhryt-neo/apply-dataform-workflows/v1/schema.json",
   "repository": "my-dataform-repo",
   "release_configs": [
     {
