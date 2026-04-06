@@ -22,7 +22,7 @@ To solve these issues, this action provides Dataform maintainers with a lightwei
 
 ```json
 {
-  "$schema": "./schema.json",
+  "$schema": "https://raw.githubusercontent.com/snhryt-neo/apply-dataform-workflows/v1/schema.json",
   "repository": "my-dataform-repo",
   "release_configs": [
     {
@@ -138,13 +138,13 @@ When `compile: true` is set, Step 2 compiles each release config and updates `re
 
 ## JSON reference
 
-Add `"$schema": "./schema.json"` to your config file for editor autocompletion. See [`schema.json`](./schema.json) for the full schema.
+Add `"$schema": "https://raw.githubusercontent.com/snhryt-neo/apply-dataform-workflows/v1/schema.json"` to your config file for editor autocompletion. See [`schema.json`](./schema.json) for the full schema.
 
 ### Top-level fields
 
 | Field | Required | Description |
 |-------|:--------:|-------------|
-| `$schema` | | Path to JSON Schema for editor autocompletion |
+| `$schema` | | URL to JSON Schema for editor autocompletion |
 | `repository` | ✅ | Dataform repository name |
 | `release_configs` | ✅ | Array of release configuration objects |
 | `workflow_configs` | | Array of workflow configuration objects |
