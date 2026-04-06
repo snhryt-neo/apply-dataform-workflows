@@ -55,7 +55,7 @@ To solve these issues, this action provides Dataform maintainers with a lightwei
 
 ```yaml
 - name: Apply Dataform release / workflow configurations
-  uses: snhryt-neo/deploy-dataform-config@v1
+  uses: snhryt-neo/apply-dataform-workflows@v1
 ```
 
 👉 See [`examples/.github/workflows/apply-dataform-workflows.yml`](examples/.github/workflows/apply-dataform-workflows.yml) for a full workflow example.

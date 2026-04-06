@@ -32,7 +32,7 @@ jobs:
           service_account: "<SERVICE_ACCOUNT_NAME>@<PROJECT_ID>.iam.gserviceaccount.com"
 
       - name: Apply Dataform release / workflow configurations
-        uses: snhryt-neo/deploy-dataform-config@v1
+        uses: snhryt-neo/apply-dataform-workflows@v1
         with:
           dry_run: ${{ inputs.dry_run || 'false' }}
           compile: "true" # compile releases and update releaseCompilationResult
