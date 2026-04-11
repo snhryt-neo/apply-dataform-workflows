@@ -189,7 +189,7 @@ sequenceDiagram
 | フィールド | 型 | 説明 |
 |-----------|-----|------|
 | `tags` | `string[]` | タグでアクションを選択 |
-| `actions` | `string[]` | 実行するアクション名を直接指定 |
+| `actions` | `string[]` | 実行するアクション名、または `name` に加えて Dataform の `database` / `schema` の別名として `project_id` / `dataset_id` を持つオブジェクトを指定 |
 | `is_all` | `boolean` | true の場合はすべてのアクションを実行 |
 
 

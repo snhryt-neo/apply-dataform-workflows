@@ -71,7 +71,9 @@
                       "properties": {
                         "name": { "type": "string" },
                         "project_id": { "type": "string" },
-                        "dataset_id": { "type": "string" }
+                        "dataset_id": { "type": "string" },
+                        "database": { "type": "string" },
+                        "schema": { "type": "string" }
                       }
                     }
                   ]
