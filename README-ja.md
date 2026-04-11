@@ -64,56 +64,27 @@
 
 以上！
 
-## 処理フロー
+## リリース/ワークフロー構成の更新フロー
 
 ```mermaid
-sequenceDiagram
-    participant Action as apply action
-    participant API as Dataform API
+flowchart LR
+    A[Release / Workflow config candidate] --> B{Exists in JSON?}
 
-    rect rgb(235, 245, 255)
-        Note over Action,API: Step 1/3 — release_configs（各構成ごとに実行）
-        Action->>API: GET releaseConfig
-        alt GET レスポンスに存在する
-            Action->>API: PATCH releaseConfig
-            alt PATCH が immutable field error で失敗<br/>（codeCompilationConfig）
-                Action-->>API: DELETE releaseConfig
-                Action->>API: POST releaseConfig
-            else PATCH 成功
-                API-->>Action: Updated
-            end
-        else GET レスポンスに存在しない
-            Action->>API: POST releaseConfig
-        end
-        opt JSON に存在しない & sync_delete: true
-            Action-->>API: DELETE releaseConfig
-        end
-    end
+    B -- Yes --> C{Exists in GET?}
+    B -- No --> D{Exists in GET?}
 
-    rect rgb(235, 245, 255)
-        Note over Action,API: Step 2/3 — compile（optional）
-        Action->>API: POST compilationResults
-        Action->>API: PATCH releaseConfig（releaseCompilationResult）
-    end
+    C --> E{Update immutable field?}
+    C -- No --> F[POST new config]
 
-    rect rgb(235, 245, 255)
-        Note over Action,API: Step 3/3 — workflow_configs（各構成ごとに実行）
-        Action->>API: GET workflowConfig
-        alt GET レスポンスに存在する
-            Action->>API: PATCH workflowConfig
-            alt PATCH が immutable field error で失敗<br/>（invocationConfig）
-                Action-->>API: DELETE workflowConfig
-                Action->>API: POST workflowConfig
-            else PATCH 成功
-                API-->>Action: Updated
-            end
-        else GET レスポンスに存在しない
-            Action->>API: POST workflowConfig
-        end
-        opt JSON に存在しない & sync_delete: true
-            Action-->>API: DELETE workflowConfig
-        end
-    end
+    E -- Yes --> G[DELETE existing config]
+    E -- No --> H[PATCH existing config]
+    G --> F
+
+    D -- Yes --> I{sync_delete?}
+    D -- No --> J[skip]
+
+    I -- Yes --> K[DELETE orphaned config]
+    I -- No --> J
 ```
 
 リリース構成はワークフロー構成より先にデプロイされるため、同一 JSON 内での参照が安全に解決されます。
@@ -125,7 +96,7 @@ sequenceDiagram
 >
 > この挙動を避けたい場合には `sync_delete: false` を指定してください。ただし、この場合は JSON ファイルとクラウド側で完全な同期が取れなくなる点にご注意ください。
 
-## Release Compilation
+## リリース構成のコンパイルについて
 
 `compile: true` を指定すると、構成更新ステップの後で各リリース構成をコンパイルし、最新の `releaseCompilationResult` で release config を更新します。
 
