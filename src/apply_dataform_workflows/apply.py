@@ -421,23 +421,27 @@ def main() -> None:
     do_compile = os.environ.get("DO_COMPILE", "false").lower() == "true"
     sync_delete = os.environ.get("SYNC_DELETE", "true").lower() == "true"
     dry_run = os.environ.get("DRY_RUN", "false").lower() == "true"
-    # Load and validate config
+    # Resolve project_id, location, and default_dataset
     try:
-        config = ConfigLoader.load(config_file)
-    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
-        print(f"::error::Config error: {e}")
-        sys.exit(1)
-
-    repository = config.repository
-
-    # Resolve project_id and location
-    try:
-        project_id, location = ConfigLoader.resolve_workflow_settings(
+        project_id, location, default_dataset = ConfigLoader.resolve_workflow_settings(
             workflow_settings, project_id, location
         )
     except (FileNotFoundError, ValueError) as e:
         print(f"::error::{e}")
         sys.exit(1)
+
+    # Load and validate config
+    try:
+        config = ConfigLoader.load(
+            config_file,
+            project_id=project_id,
+            default_dataset=default_dataset,
+        )
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+        print(f"::error::Config error: {e}")
+        sys.exit(1)
+
+    repository = config.repository
 
     location, original_location = normalize_location(location)
     if original_location is not None:

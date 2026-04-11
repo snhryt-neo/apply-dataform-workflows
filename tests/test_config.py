@@ -268,12 +268,145 @@ class TestConfigLoaderLoad:
             )
         )
 
+        # No project_id / default_dataset → name-only fallback
         config = ConfigLoader.load(config_file)
 
         assert config.workflow_configs[0].body["invocationConfig"] == {
             **expected,
             "transitiveDependenciesIncluded": True,
         }
+
+    def test_load_actions_targets_fully_qualified_when_project_and_dataset_given(
+        self, tmp_path
+    ):
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": "prod", "git_ref": "main"}],
+                    "workflow_configs": [
+                        {
+                            "id": "wc1",
+                            "release_config": "prod",
+                            "targets": {"actions": ["users", "sessions"]},
+                        }
+                    ],
+                }
+            )
+        )
+
+        config = ConfigLoader.load(
+            config_file, project_id="my-project", default_dataset="my_dataset"
+        )
+
+        assert config.workflow_configs[0].body["invocationConfig"][
+            "includedTargets"
+        ] == [
+            {"projectId": "my-project", "datasetId": "my_dataset", "name": "users"},
+            {"projectId": "my-project", "datasetId": "my_dataset", "name": "sessions"},
+        ]
+
+    def test_load_actions_targets_project_only_when_no_dataset(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": "prod", "git_ref": "main"}],
+                    "workflow_configs": [
+                        {
+                            "id": "wc1",
+                            "release_config": "prod",
+                            "targets": {"actions": ["users"]},
+                        }
+                    ],
+                }
+            )
+        )
+
+        config = ConfigLoader.load(
+            config_file, project_id="my-project", default_dataset=None
+        )
+
+        assert config.workflow_configs[0].body["invocationConfig"][
+            "includedTargets"
+        ] == [{"projectId": "my-project", "name": "users"}]
+
+    def test_load_actions_targets_name_only_when_no_project_or_dataset(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": "prod", "git_ref": "main"}],
+                    "workflow_configs": [
+                        {
+                            "id": "wc1",
+                            "release_config": "prod",
+                            "targets": {"actions": ["users"]},
+                        }
+                    ],
+                }
+            )
+        )
+
+        config = ConfigLoader.load(config_file)
+
+        assert config.workflow_configs[0].body["invocationConfig"][
+            "includedTargets"
+        ] == [{"name": "users"}]
+
+    def test_load_tags_target_unaffected_by_project_and_dataset(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": "prod", "git_ref": "main"}],
+                    "workflow_configs": [
+                        {
+                            "id": "wc1",
+                            "release_config": "prod",
+                            "targets": {"tags": ["daily"]},
+                        }
+                    ],
+                }
+            )
+        )
+
+        config = ConfigLoader.load(
+            config_file, project_id="my-project", default_dataset="my_dataset"
+        )
+
+        ic = config.workflow_configs[0].body["invocationConfig"]
+        assert ic == {"includedTags": ["daily"]}
+
+    def test_load_is_all_target_unaffected_by_project_and_dataset(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": "prod", "git_ref": "main"}],
+                    "workflow_configs": [
+                        {
+                            "id": "wc1",
+                            "release_config": "prod",
+                            "targets": {"is_all": True},
+                        }
+                    ],
+                }
+            )
+        )
+
+        config = ConfigLoader.load(
+            config_file, project_id="my-project", default_dataset="my_dataset"
+        )
+
+        ic = config.workflow_configs[0].body["invocationConfig"]
+        assert "includedTargets" not in ic
+        assert "includedTags" not in ic
 
     @pytest.mark.parametrize("disabled", [True, False])
     def test_load_workflow_config_preserves_disabled(self, tmp_path, disabled):
@@ -448,25 +581,28 @@ class TestNormalizeLocation:
 
 class TestResolveWorkflowSettings:
     def test_reads_project_and_location_from_yaml(self, fixtures_dir):
-        project_id, location = ConfigLoader.resolve_workflow_settings(
+        project_id, location, default_dataset = ConfigLoader.resolve_workflow_settings(
             fixtures_dir / "workflow_settings.yaml", None, None
         )
         assert project_id == "test-project"
         assert location == "asia-northeast1"
+        assert default_dataset is None
 
     def test_explicit_values_override_yaml(self, fixtures_dir):
-        project_id, location = ConfigLoader.resolve_workflow_settings(
+        project_id, location, default_dataset = ConfigLoader.resolve_workflow_settings(
             fixtures_dir / "workflow_settings.yaml", "override-project", "us-central1"
         )
         assert project_id == "override-project"
         assert location == "us-central1"
+        assert default_dataset is None
 
     def test_partial_override(self, fixtures_dir):
-        project_id, location = ConfigLoader.resolve_workflow_settings(
+        project_id, location, default_dataset = ConfigLoader.resolve_workflow_settings(
             fixtures_dir / "workflow_settings.yaml", "override-project", None
         )
         assert project_id == "override-project"
         assert location == "asia-northeast1"
+        assert default_dataset is None
 
     def test_missing_yaml_without_overrides_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
@@ -475,11 +611,12 @@ class TestResolveWorkflowSettings:
             )
 
     def test_missing_yaml_with_full_overrides_succeeds(self, tmp_path):
-        project_id, location = ConfigLoader.resolve_workflow_settings(
+        project_id, location, default_dataset = ConfigLoader.resolve_workflow_settings(
             tmp_path / "nonexistent.yaml", "my-project", "us-east1"
         )
         assert project_id == "my-project"
         assert location == "us-east1"
+        assert default_dataset is None
 
     def test_missing_key_in_yaml_raises(self, tmp_path):
         yaml_file = tmp_path / "workflow_settings.yaml"
@@ -492,8 +629,36 @@ class TestResolveWorkflowSettings:
         yaml_file.write_text(
             "defaultProject: 'quoted-project'\ndefaultLocation: \"double-quoted\"\n"
         )
-        project_id, location = ConfigLoader.resolve_workflow_settings(
+        project_id, location, default_dataset = ConfigLoader.resolve_workflow_settings(
             yaml_file, None, None
         )
         assert project_id == "quoted-project"
         assert location == "double-quoted"
+        assert default_dataset is None
+
+    def test_reads_default_dataset_from_yaml(self, tmp_path):
+        yaml_file = tmp_path / "workflow_settings.yaml"
+        yaml_file.write_text(
+            "defaultProject: my-project\n"
+            "defaultLocation: us-central1\n"
+            "defaultDataset: my_dataset\n"
+        )
+        project_id, location, default_dataset = ConfigLoader.resolve_workflow_settings(
+            yaml_file, None, None
+        )
+        assert project_id == "my-project"
+        assert location == "us-central1"
+        assert default_dataset == "my_dataset"
+
+    def test_default_dataset_not_returned_when_full_overrides_provided(self, tmp_path):
+        yaml_file = tmp_path / "workflow_settings.yaml"
+        yaml_file.write_text(
+            "defaultProject: my-project\n"
+            "defaultLocation: us-central1\n"
+            "defaultDataset: my_dataset\n"
+        )
+        _, _, default_dataset = ConfigLoader.resolve_workflow_settings(
+            yaml_file, "override-project", "us-east1"
+        )
+        # When both project_id and location are provided, YAML is not read
+        assert default_dataset is None

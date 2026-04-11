@@ -79,7 +79,11 @@ class DeployConfig:
 
 class ConfigLoader:
     @staticmethod
-    def load(config_path: str | Path) -> DeployConfig:
+    def load(
+        config_path: str | Path,
+        project_id: str | None = None,
+        default_dataset: str | None = None,
+    ) -> DeployConfig:
         config_path = Path(config_path)
         if not config_path.exists():
             raise FileNotFoundError(f"Config file not found: {config_path}")
@@ -115,7 +119,9 @@ class ConfigLoader:
                     f"workflow_configs[{i}] is missing required field 'release_config'"
                 )
             wc_body = {k: v for k, v in wc.items() if k not in ("id", "releaseConfig")}
-            ConfigLoader._merge_workflow_targets(wc_body, f"workflow_configs[{i}]")
+            ConfigLoader._merge_workflow_targets(
+                wc_body, f"workflow_configs[{i}]", project_id, default_dataset
+            )
             wc_body.setdefault("disabled", False)
             workflow_configs.append(
                 WorkflowConfig(
@@ -146,9 +152,9 @@ class ConfigLoader:
         workflow_settings_path: str | Path,
         project_id: str | None,
         location: str | None,
-    ) -> tuple[str, str]:
+    ) -> tuple[str, str, str | None]:
         if project_id and location:
-            return project_id, location
+            return project_id, location, None
 
         path = Path(workflow_settings_path)
         if not path.exists():
@@ -173,7 +179,8 @@ class ConfigLoader:
                     f"defaultLocation not found in {path} and location not provided"
                 )
 
-        return project_id, location
+        default_dataset = settings.get("defaultDataset") or None
+        return project_id, location, default_dataset
 
     @staticmethod
     def _read_yaml_field(path: Path) -> dict[str, str]:
@@ -195,7 +202,12 @@ class ConfigLoader:
         body["gitCommitish"] = git_ref
 
     @staticmethod
-    def _merge_workflow_targets(body: dict[str, Any], path: str) -> None:
+    def _merge_workflow_targets(
+        body: dict[str, Any],
+        path: str,
+        project_id: str | None = None,
+        default_dataset: str | None = None,
+    ) -> None:
         targets = body.pop("targets", None)
         if not isinstance(targets, dict):
             raise ValueError(f"{path} is missing required field 'targets'")
@@ -222,7 +234,12 @@ class ConfigLoader:
 
         if has_actions:
             invocation_config["includedTargets"] = [
-                {"name": action_name} for action_name in targets["actions"]
+                {
+                    **({"projectId": project_id} if project_id else {}),
+                    **({"datasetId": default_dataset} if default_dataset else {}),
+                    "name": action_name,
+                }
+                for action_name in targets["actions"]
             ]
             return
 
