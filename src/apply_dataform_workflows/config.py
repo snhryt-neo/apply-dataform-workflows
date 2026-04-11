@@ -233,14 +233,19 @@ class ConfigLoader:
             return
 
         if has_actions:
-            invocation_config["includedTargets"] = [
-                {
-                    **({"projectId": project_id} if project_id else {}),
-                    **({"datasetId": default_dataset} if default_dataset else {}),
-                    "name": action_name,
-                }
-                for action_name in targets["actions"]
-            ]
+            result = []
+            for action in targets["actions"]:
+                if isinstance(action, str):
+                    target: dict[str, str] = {
+                        **({"projectId": project_id} if project_id else {}),
+                        **({"datasetId": default_dataset} if default_dataset else {}),
+                        "name": action,
+                    }
+                else:
+                    # Object with explicit name/projectId/datasetId — use as-is
+                    target = action
+                result.append(target)
+            invocation_config["includedTargets"] = result
             return
 
         invocation_config.pop("includedTags", None)

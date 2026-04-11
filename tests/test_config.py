@@ -307,7 +307,7 @@ class TestConfigLoaderLoad:
             {"projectId": "my-project", "datasetId": "my_dataset", "name": "sessions"},
         ]
 
-    def test_load_actions_targets_project_only_when_no_dataset(self, tmp_path):
+    def test_load_actions_targets_dataset_only_when_no_project(self, tmp_path):
         config_file = tmp_path / "config.json"
         config_file.write_text(
             json.dumps(
@@ -326,12 +326,99 @@ class TestConfigLoaderLoad:
         )
 
         config = ConfigLoader.load(
-            config_file, project_id="my-project", default_dataset=None
+            config_file, project_id=None, default_dataset="my_dataset"
         )
 
         assert config.workflow_configs[0].body["invocationConfig"][
             "includedTargets"
-        ] == [{"projectId": "my-project", "name": "users"}]
+        ] == [{"datasetId": "my_dataset", "name": "users"}]
+
+    def test_load_actions_targets_object_format_used_as_is(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": "prod", "git_ref": "main"}],
+                    "workflow_configs": [
+                        {
+                            "id": "wc1",
+                            "release_config": "prod",
+                            "targets": {
+                                "actions": [
+                                    {
+                                        "name": "users",
+                                        "project_id": "explicit-project",
+                                        "dataset_id": "explicit_ds",
+                                    }
+                                ]
+                            },
+                        }
+                    ],
+                }
+            )
+        )
+
+        # project_id / default_dataset are ignored for object entries
+        config = ConfigLoader.load(
+            config_file, project_id="default-project", default_dataset="default_ds"
+        )
+
+        assert config.workflow_configs[0].body["invocationConfig"][
+            "includedTargets"
+        ] == [
+            {
+                "name": "users",
+                "projectId": "explicit-project",
+                "datasetId": "explicit_ds",
+            }
+        ]
+
+    def test_load_actions_targets_mixed_string_and_object(self, tmp_path):
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": "prod", "git_ref": "main"}],
+                    "workflow_configs": [
+                        {
+                            "id": "wc1",
+                            "release_config": "prod",
+                            "targets": {
+                                "actions": [
+                                    {
+                                        "name": "users",
+                                        "project_id": "explicit-project",
+                                        "dataset_id": "explicit_ds",
+                                    },
+                                    "sessions",
+                                ]
+                            },
+                        }
+                    ],
+                }
+            )
+        )
+
+        config = ConfigLoader.load(
+            config_file, project_id="default-project", default_dataset="default_ds"
+        )
+
+        assert config.workflow_configs[0].body["invocationConfig"][
+            "includedTargets"
+        ] == [
+            {
+                "name": "users",
+                "projectId": "explicit-project",
+                "datasetId": "explicit_ds",
+            },
+            {
+                "projectId": "default-project",
+                "datasetId": "default_ds",
+                "name": "sessions",
+            },
+        ]
 
     def test_load_actions_targets_name_only_when_no_project_or_dataset(self, tmp_path):
         config_file = tmp_path / "config.json"
