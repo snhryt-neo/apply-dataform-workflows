@@ -239,7 +239,11 @@ class ConfigLoader:
                     target = ConfigLoader._normalize_workflow_target(
                         {
                             **({"projectId": project_id} if project_id else {}),
-                            **({"datasetId": default_dataset} if default_dataset else {}),
+                            **(
+                                {"datasetId": default_dataset}
+                                if default_dataset
+                                else {}
+                            ),
                             "name": action,
                         }
                     )
