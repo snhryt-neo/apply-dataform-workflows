@@ -91,6 +91,11 @@ Release configs are deployed before workflow configs, so references within the s
 
 For existing release configs, a change in `gitCommitish` or `codeCompilationConfig` is handled with `DELETE -> POST`. For existing workflow configs, a change in `invocationConfig` is handled the same way. Other updates continue to use `PATCH`.
 
+> [!NOTE]
+> In line with the design principle of treating the JSON file as the Single Source of Truth (SSoT), `sync_delete` is enabled by default. When enabled, release configurations and workflow configurations that exist on Google Cloud but are not in the JSON file are **automatically deleted**.
+>
+> Set `sync_delete: false` to disable this behavior and only upsert. Note that in this case the JSON file and Google Cloud will no longer be in full sync.
+
 ## Release Compilation
 
 When `compile: true` is set, the action compiles each release config after the release/workflow configuration update step and then patches the release config with the latest `releaseCompilationResult`.
@@ -103,11 +108,6 @@ When `compile: false` is used and release config compilation is left to a schedu
 - workflows can run against unintended code: execution may still use an older compilation result that does not match the latest repository state or the intended deployment
 
 To keep the information linked to Dataform up to date, `compile: true` is recommended.
-
-> [!NOTE]
-> In line with the design principle of treating the JSON file as the Single Source of Truth (SSoT), `sync_delete` is enabled by default. When enabled, release configurations and workflow configurations that exist on Google Cloud but are not in the JSON file are **automatically deleted**.
->
-> Set `sync_delete: false` to disable this behavior and only upsert. Note that in this case the JSON file and Google Cloud will no longer be in full sync.
 
 ## Inputs
 

@@ -120,6 +120,11 @@ sequenceDiagram
 
 既存のリリース構成では `gitCommitish` または `codeCompilationConfig` の変更時に `DELETE -> POST` を使います。既存のワークフロー構成では `invocationConfig` の変更時に同様の処理を行います。それ以外の更新は引き続き `PATCH` を使います。
 
+> [!NOTE]
+> JSON ファイルを Single Source of Truth (SSoT) として運用する思想のため、 `sync_delete` オプションはデフォルトで有効化されています。このオプションが有効化されている場合、クラウド上に存在するが JSON に含まれないリリース構成およびワークフロー構成は**自動的に削除されます。**
+>
+> この挙動を避けたい場合には `sync_delete: false` を指定してください。ただし、この場合は JSON ファイルとクラウド側で完全な同期が取れなくなる点にご注意ください。
+
 ## Release Compilation
 
 `compile: true` を指定すると、構成更新ステップの後で各リリース構成をコンパイルし、最新の `releaseCompilationResult` で release config を更新します。
@@ -132,11 +137,6 @@ sequenceDiagram
 - ワークフローが意図しないコードで実行される: 最新のリポジトリ状態や意図したデプロイ内容と一致しない、古い compilation result を使って実行される可能性があります
 
 Dataform に連携される情報を常に最新にしておくために、`compile: true` としておくことを推奨します。
-
-> [!NOTE]
-> JSON ファイルを Single Source of Truth (SSoT) として運用する思想のため、 `sync_delete` オプションはデフォルトで有効化されています。このオプションが有効化されている場合、クラウド上に存在するが JSON に含まれないリリース構成およびワークフロー構成は**自動的に削除されます。**
->
-> この挙動を避けたい場合には `sync_delete: false` を指定してください。ただし、この場合は JSON ファイルとクラウド側で完全な同期が取れなくなる点にご注意ください。
 
 ## Inputs
 
