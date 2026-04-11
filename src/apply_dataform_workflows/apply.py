@@ -83,6 +83,10 @@ def _build_update_mask(body: dict, allowed_fields: tuple[str, ...]) -> str:
     return ",".join(field for field in allowed_fields if field in body)
 
 
+def _filter_body_fields(body: dict, allowed_fields: tuple[str, ...]) -> dict:
+    return {field: body[field] for field in allowed_fields if field in body}
+
+
 def _get_existing_resource(
     client: DataformApiClient, resource_path: str
 ) -> dict | None:
@@ -175,17 +179,26 @@ def deploy_release_configs(
                 detail = "Recreated"
             else:
                 print(f"  Updating releaseConfig: {rc.id}")
-                update_mask = _build_update_mask(
+                patch_body = _filter_body_fields(
                     rc.body,
                     (
                         "gitCommitish",
                         "cronSchedule",
                         "timeZone",
-                        "codeCompilationConfig",
                         "disabled",
                     ),
                 )
-                client.patch(resource_path, rc.body, params={"updateMask": update_mask})
+                update_mask = _build_update_mask(
+                    patch_body,
+                    (
+                        "cronSchedule",
+                        "timeZone",
+                        "disabled",
+                    ),
+                )
+                client.patch(
+                    resource_path, patch_body, params={"updateMask": update_mask}
+                )
                 print(f"  Updated releaseConfig: {rc.id}")
                 updated.append(rc.id)
                 detail = "Updated"
