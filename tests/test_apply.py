@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from unittest.mock import call
 from unittest.mock import MagicMock
 from unittest.mock import patch as mock_patch
 
@@ -686,6 +687,87 @@ class TestDeployWorkflowConfigs:
         deploy_workflow_configs(mock_client, config, False, github_output)
 
         assert github_output.results[0].status == "failed"
+
+    def test_recreates_workflow_config_on_immutable_field_error(
+        self, mock_client, github_output, fixtures_dir
+    ):
+        from apply_dataform_workflows.apply import deploy_workflow_configs
+
+        config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        mock_client.upsert.side_effect = ApiError(
+            400, "Request contains immutable fields"
+        )
+
+        deploy_workflow_configs(mock_client, config, False, github_output)
+
+        expected_body = {
+            "cronSchedule": "0 3 * * *",
+            "timeZone": "Asia/Tokyo",
+            "invocationConfig": {},
+            "disabled": False,
+            "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+        }
+        assert mock_client.method_calls[:3] == [
+            call.upsert(
+                "workflowConfig",
+                "daily-run",
+                "/workflowConfigs",
+                "workflowConfigId",
+                expected_body,
+                update_mask=(
+                    "releaseConfig,cronSchedule,timeZone,invocationConfig,disabled"
+                ),
+            ),
+            call.delete("/workflowConfigs/daily-run"),
+            call.post(
+                "/workflowConfigs",
+                expected_body,
+                params={"workflowConfigId": "daily-run"},
+            ),
+        ]
+        assert github_output.results[0].status == "success"
+        assert github_output.results[0].detail == "Recreated"
+
+    def test_records_failure_when_recreate_after_immutable_field_error_fails(
+        self, mock_client, github_output, fixtures_dir
+    ):
+        from apply_dataform_workflows.apply import deploy_workflow_configs
+
+        config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        mock_client.upsert.side_effect = ApiError(
+            400, "Request contains immutable fields"
+        )
+        mock_client.post.side_effect = ApiError(500, "Recreate failed")
+
+        deploy_workflow_configs(mock_client, config, False, github_output)
+
+        expected_body = {
+            "cronSchedule": "0 3 * * *",
+            "timeZone": "Asia/Tokyo",
+            "invocationConfig": {},
+            "disabled": False,
+            "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+        }
+        assert mock_client.method_calls[:3] == [
+            call.upsert(
+                "workflowConfig",
+                "daily-run",
+                "/workflowConfigs",
+                "workflowConfigId",
+                expected_body,
+                update_mask=(
+                    "releaseConfig,cronSchedule,timeZone,invocationConfig,disabled"
+                ),
+            ),
+            call.delete("/workflowConfigs/daily-run"),
+            call.post(
+                "/workflowConfigs",
+                expected_body,
+                params={"workflowConfigId": "daily-run"},
+            ),
+        ]
+        assert github_output.results[0].status == "failed"
+        assert github_output.results[0].detail == "Failed"
 
     def test_sync_delete_warns_on_list_failure(
         self, mock_client, github_output, fixtures_dir, capsys

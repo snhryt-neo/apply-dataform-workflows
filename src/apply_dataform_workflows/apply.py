@@ -311,11 +311,45 @@ def deploy_workflow_configs(
                     StepResult("3/3", f"workflowConfig: {wc.id}", "success", detail)
                 )
         except ApiError as e:
-            print(f"::error::Failed to deploy workflowConfig '{wc.id}': {e.message}")
-            failed.append(wc.id)
-            output.add_result(
-                StepResult("3/3", f"workflowConfig: {wc.id}", "failed", "Failed")
-            )
+            if "immutable fields" in e.message:
+                # invocation_config is treated as immutable by the API server,
+                # so delete the existing resource and recreate it
+                print(
+                    f"  workflowConfig '{wc.id}' contains immutable field changes"
+                    f" (invocation_config). Deleting and recreating..."
+                )
+                try:
+                    client.delete(f"/workflowConfigs/{wc.id}")
+                    print(f"  Deleted workflowConfig: {wc.id}")
+                    client.post(
+                        "/workflowConfigs", body, params={"workflowConfigId": wc.id}
+                    )
+                    print(f"  Recreated workflowConfig: {wc.id}")
+                    created.append(wc.id)
+                    output.add_result(
+                        StepResult(
+                            "3/3", f"workflowConfig: {wc.id}", "success", "Recreated"
+                        )
+                    )
+                except ApiError as recreate_err:
+                    print(
+                        f"::error::Failed to recreate workflowConfig '{wc.id}':",
+                        f" {recreate_err.message}",
+                    )
+                    failed.append(wc.id)
+                    output.add_result(
+                        StepResult(
+                            "3/3", f"workflowConfig: {wc.id}", "failed", "Failed"
+                        )
+                    )
+            else:
+                print(
+                    f"::error::Failed to deploy workflowConfig '{wc.id}': {e.message}"
+                )
+                failed.append(wc.id)
+                output.add_result(
+                    StepResult("3/3", f"workflowConfig: {wc.id}", "failed", "Failed")
+                )
 
     # Sync-delete orphaned workflow configs
     deleted = []
