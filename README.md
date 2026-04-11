@@ -89,9 +89,20 @@ flowchart LR
 
 Release configs are deployed before workflow configs, so references within the same JSON file are resolved safely.
 
-When `compile: true` is set, Step 2 compiles each release config and updates `releaseCompilationResult`. This is useful for reflecting code changes immediately on push.
-
 For existing release configs, a change in `gitCommitish` or `codeCompilationConfig` is handled with `DELETE -> POST`. For existing workflow configs, a change in `invocationConfig` is handled the same way. Other updates continue to use `PATCH`.
+
+## Release Compilation
+
+When `compile: true` is set, the action compiles each release config after the release/workflow configuration update step and then patches the release config with the latest `releaseCompilationResult`.
+
+This is useful when you want code changes to be reflected immediately on push.
+
+When `compile: false` is used and release config compilation is left to a scheduler-based process, the following risks should be considered.
+
+- workflows can fail to run due to errors: for example, a workflow may reference newly added tags, actions, or tables that are not yet included in the current `releaseCompilationResult`
+- workflows can run against unintended code: execution may still use an older compilation result that does not match the latest repository state or the intended deployment
+
+To keep the information linked to Dataform up to date, `compile: true` is recommended.
 
 > [!NOTE]
 > In line with the design principle of treating the JSON file as the Single Source of Truth (SSoT), `sync_delete` is enabled by default. When enabled, release configurations and workflow configurations that exist on Google Cloud but are not in the JSON file are **automatically deleted**.

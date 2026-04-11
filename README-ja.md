@@ -118,9 +118,20 @@ sequenceDiagram
 
 リリース構成はワークフロー構成より先にデプロイされるため、同一 JSON 内での参照が安全に解決されます。
 
-`compile: true` を指定すると、Step 2 で各リリース構成に対してオンデマンドのコンパイルを実行し、コンパイルの結果を更新します。push 時にコードの即時反映が必要な場合に有効です。
+既存のリリース構成では `gitCommitish` または `codeCompilationConfig` の変更時に `DELETE -> POST` を使います。既存のワークフロー構成では `invocationConfig` の変更時に同様の処理を行います。それ以外の更新は引き続き `PATCH` を使います。
 
-Dataform API が `releaseConfig.codeCompilationConfig` または `workflowConfig.invocationConfig` の更新に対して immutable-field error を返した場合、この Action は透過的に `delete + recreate` にフォールバックし、JSON ファイルを実質的な Single Source of Truth として維持します。
+## Release Compilation
+
+`compile: true` を指定すると、構成更新ステップの後で各リリース構成をコンパイルし、最新の `releaseCompilationResult` で release config を更新します。
+
+これは push 後にコード変更をすぐ反映したい場合に有効です。
+
+`compile: false` で、リリース構成のコンパイルをスケジューラベースにすると、次のようなリスクが考えられます。
+
+- ワークフローがエラーで動かない: たとえば、ワークフロー側で新規作成したタグ・アクション・テーブルを参照していても、それらが現在の `releaseCompilationResult` にまだ含まれていない場合があります
+- ワークフローが意図しないコードで実行される: 最新のリポジトリ状態や意図したデプロイ内容と一致しない、古い compilation result を使って実行される可能性があります
+
+Dataform に連携される情報を常に最新にしておくために、`compile: true` としておくことを推奨します。
 
 > [!NOTE]
 > JSON ファイルを Single Source of Truth (SSoT) として運用する思想のため、 `sync_delete` オプションはデフォルトで有効化されています。このオプションが有効化されている場合、クラウド上に存在するが JSON に含まれないリリース構成およびワークフロー構成は**自動的に削除されます。**
