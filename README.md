@@ -64,63 +64,34 @@ To solve these issues, this action provides Dataform maintainers with a lightwei
 
 That's it!
 
-## Processing flow
+## Release / Workflow Configurations Update Flow
 
 ```mermaid
-sequenceDiagram
-    participant Action as apply action
-    participant API as Dataform API
+flowchart LR
+    A[Release / Workflow config candidate] --> B{Exists in JSON?}
 
-    rect rgb(235, 245, 255)
-        Note over Action,API: Step 1/3 — release_configs (for each)
-        Action->>API: GET releaseConfig
-        alt exists in GET response
-            Action->>API: PATCH releaseConfig
-            alt PATCH rejected with immutable field error<br/>(codeCompilationConfig)
-                Action-->>API: DELETE releaseConfig
-                Action->>API: POST releaseConfig
-            else PATCH succeeds
-                API-->>Action: Updated
-            end
-        else not in GET response
-            Action->>API: POST releaseConfig
-        end
-        opt not in JSON & sync_delete: true
-            Action-->>API: DELETE releaseConfig
-        end
-    end
+    B -- Yes --> C{Exists in GET?}
+    B -- No --> D{Exists in GET?}
 
-    rect rgb(235, 245, 255)
-        Note over Action,API: Step 2/3 — compile (optional)
-        Action->>API: POST compilationResults
-        Action->>API: PATCH releaseConfig (releaseCompilationResult)
-    end
+    C --> E{Update immutable field?}
+    C -- No --> F[POST new config]
 
-    rect rgb(235, 245, 255)
-        Note over Action,API: Step 3/3 — workflow_configs (for each)
-        Action->>API: GET workflowConfig
-        alt exists in GET response
-            Action->>API: PATCH workflowConfig
-            alt PATCH rejected with immutable field error<br/>(invocationConfig)
-                Action-->>API: DELETE workflowConfig
-                Action->>API: POST workflowConfig
-            else PATCH succeeds
-                API-->>Action: Updated
-            end
-        else not in GET response
-            Action->>API: POST workflowConfig
-        end
-        opt not in JSON & sync_delete: true
-            Action-->>API: DELETE workflowConfig
-        end
-    end
+    E -- Yes --> G[DELETE existing config]
+    E -- No --> H[PATCH existing config]
+    G --> F
+
+    D -- Yes --> I{sync_delete?}
+    D -- No --> J[skip]
+
+    I -- Yes --> K[DELETE orphaned config]
+    I -- No --> J
 ```
 
 Release configs are deployed before workflow configs, so references within the same JSON file are resolved safely.
 
 When `compile: true` is set, Step 2 compiles each release config and updates `releaseCompilationResult`. This is useful for reflecting code changes immediately on push.
 
-If the Dataform API rejects `PATCH` with an immutable-field error for `releaseConfig.codeCompilationConfig` or `workflowConfig.invocationConfig`, the action transparently falls back to delete + recreate so the JSON file remains the effective source of truth.
+For existing release configs, a change in `gitCommitish` or `codeCompilationConfig` is handled with `DELETE -> POST`. For existing workflow configs, a change in `invocationConfig` is handled the same way. Other updates continue to use `PATCH`.
 
 > [!NOTE]
 > In line with the design principle of treating the JSON file as the Single Source of Truth (SSoT), `sync_delete` is enabled by default. When enabled, release configurations and workflow configurations that exist on Google Cloud but are not in the JSON file are **automatically deleted**.

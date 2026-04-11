@@ -124,6 +124,12 @@ def github_output():
     return GitHubOutput(output_path="/dev/null", summary_path="/dev/null")
 
 
+def _json_response(body: dict) -> MagicMock:
+    response = MagicMock()
+    response.json.return_value = body
+    return response
+
+
 class TestDeployReleaseConfigs:
     def test_deploys_single_release_config(
         self, mock_client, github_output, fixtures_dir
@@ -131,22 +137,26 @@ class TestDeployReleaseConfigs:
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.UPDATED
+        mock_client.get.return_value = _json_response(
+            {
+                "gitCommitish": "main",
+                "cronSchedule": "0 0 * * *",
+                "timeZone": "Asia/Tokyo",
+                "disabled": False,
+            }
+        )
 
         deploy_release_configs(mock_client, config, False, github_output)
 
-        mock_client.upsert.assert_called_once_with(
-            "releaseConfig",
-            "production",
-            "/releaseConfigs",
-            "releaseConfigId",
+        mock_client.patch.assert_called_once_with(
+            "/releaseConfigs/production",
             {
                 "gitCommitish": "main",
                 "cronSchedule": "0 0 * * *",
                 "timeZone": "Asia/Tokyo",
                 "disabled": False,
             },
-            update_mask="gitCommitish,cronSchedule,timeZone,disabled",
+            params={"updateMask": "gitCommitish,cronSchedule,timeZone,disabled"},
         )
         assert any(result.status == "success" for result in github_output.results)
         assert github_output.results[0].detail == "Updated"
@@ -157,23 +167,25 @@ class TestDeployReleaseConfigs:
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_advanced.json")
-        mock_client.upsert.return_value = UpsertResult.CREATED
+        mock_client.get.side_effect = [
+            ApiError(404, "Not found"),
+            ApiError(404, "Not found"),
+        ]
 
         deploy_release_configs(mock_client, config, False, github_output)
 
-        assert mock_client.upsert.call_count == 2
-        first_body = mock_client.upsert.call_args_list[0].args[4]
-        second_body = mock_client.upsert.call_args_list[1].args[4]
+        assert mock_client.post.call_count == 2
+        first_body = mock_client.post.call_args_list[0].args[1]
+        second_body = mock_client.post.call_args_list[1].args[1]
         assert first_body == {
             "gitCommitish": "main",
             "cronSchedule": "0 0 * * *",
             "timeZone": "Asia/Tokyo",
             "disabled": False,
         }
-        assert (
-            mock_client.upsert.call_args_list[0].kwargs["update_mask"]
-            == "gitCommitish,cronSchedule,timeZone,disabled"
-        )
+        assert mock_client.post.call_args_list[0].kwargs["params"] == {
+            "releaseConfigId": "production"
+        }
         assert second_body == {
             "gitCommitish": "develop",
             "codeCompilationConfig": {
@@ -183,10 +195,9 @@ class TestDeployReleaseConfigs:
             },
             "disabled": False,
         }
-        assert (
-            mock_client.upsert.call_args_list[1].kwargs["update_mask"]
-            == "gitCommitish,codeCompilationConfig,disabled"
-        )
+        assert mock_client.post.call_args_list[1].kwargs["params"] == {
+            "releaseConfigId": "development"
+        }
         assert [result.detail for result in github_output.results] == [
             "Created",
             "Created",
@@ -204,7 +215,7 @@ class TestDeployReleaseConfigs:
             summary_path=str(tmp_path / "summary"),
         )
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.CREATED
+        mock_client.get.side_effect = ApiError(404, "Not found")
 
         deploy_release_configs(mock_client, config, False, output)
 
@@ -224,7 +235,14 @@ class TestDeployReleaseConfigs:
             summary_path=str(tmp_path / "summary"),
         )
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.UPDATED
+        mock_client.get.return_value = _json_response(
+            {
+                "gitCommitish": "main",
+                "cronSchedule": "0 0 * * *",
+                "timeZone": "Asia/Tokyo",
+                "disabled": False,
+            }
+        )
 
         deploy_release_configs(mock_client, config, False, output)
 
@@ -236,6 +254,7 @@ class TestDeployReleaseConfigs:
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        mock_client.dry_run = True
         mock_client.upsert.return_value = UpsertResult.DRY_RUN
 
         deploy_release_configs(mock_client, config, False, github_output)
@@ -248,24 +267,72 @@ class TestDeployReleaseConfigs:
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.side_effect = ApiError(500, "Server error")
+        mock_client.get.side_effect = ApiError(500, "Server error")
 
         deploy_release_configs(mock_client, config, False, github_output)
 
         assert github_output.results[0].status == "failed"
 
-    def test_recreates_release_config_on_immutable_field_error(
+    def test_recreates_release_config_when_git_commitish_changes(
+        self, mock_client, github_output, fixtures_dir
+    ):
+        from apply_dataform_workflows.apply import deploy_release_configs
+
+        config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        mock_client.get.return_value = _json_response(
+            {
+                "gitCommitish": "old-main",
+                "cronSchedule": "0 0 * * *",
+                "timeZone": "Asia/Tokyo",
+                "disabled": False,
+            }
+        )
+
+        deploy_release_configs(mock_client, config, False, github_output)
+
+        expected_body = {
+            "gitCommitish": "main",
+            "cronSchedule": "0 0 * * *",
+            "timeZone": "Asia/Tokyo",
+            "disabled": False,
+        }
+        assert mock_client.method_calls[:3] == [
+            call.get("/releaseConfigs/production"),
+            call.delete("/releaseConfigs/production"),
+            call.post(
+                "/releaseConfigs",
+                expected_body,
+                params={"releaseConfigId": "production"},
+            ),
+        ]
+        assert github_output.results[0].status == "success"
+        assert github_output.results[0].detail == "Recreated"
+
+    def test_recreates_release_config_when_compile_override_changes(
         self, mock_client, github_output, fixtures_dir
     ):
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_advanced.json")
-        mock_client.upsert.side_effect = [
-            UpsertResult.UPDATED,
-            ApiError(
-                400,
-                "Request update_mask contains immutable fields:"
-                " [code_compilation_config]",
+        mock_client.get.side_effect = [
+            _json_response(
+                {
+                    "gitCommitish": "main",
+                    "cronSchedule": "0 0 * * *",
+                    "timeZone": "Asia/Tokyo",
+                    "disabled": False,
+                }
+            ),
+            _json_response(
+                {
+                    "gitCommitish": "develop",
+                    "codeCompilationConfig": {
+                        "defaultDatabase": "different-project",
+                        "schemaSuffix": "_dev",
+                        "vars": {"env": "development"},
+                    },
+                    "disabled": False,
+                }
             ),
         ]
 
@@ -280,15 +347,8 @@ class TestDeployReleaseConfigs:
             },
             "disabled": False,
         }
-        assert mock_client.method_calls[1:4] == [
-            call.upsert(
-                "releaseConfig",
-                "development",
-                "/releaseConfigs",
-                "releaseConfigId",
-                expected_body,
-                update_mask="gitCommitish,codeCompilationConfig,disabled",
-            ),
+        assert mock_client.method_calls[2:5] == [
+            call.get("/releaseConfigs/development"),
             call.delete("/releaseConfigs/development"),
             call.post(
                 "/releaseConfigs",
@@ -299,15 +359,19 @@ class TestDeployReleaseConfigs:
         assert github_output.results[1].status == "success"
         assert github_output.results[1].detail == "Recreated"
 
-    def test_records_failure_when_recreate_after_release_immutable_error_fails(
+    def test_records_failure_when_release_recreate_fails(
         self, mock_client, github_output, fixtures_dir
     ):
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.side_effect = ApiError(
-            400,
-            "Request update_mask contains immutable fields: [code_compilation_config]",
+        mock_client.get.return_value = _json_response(
+            {
+                "gitCommitish": "old-main",
+                "cronSchedule": "0 0 * * *",
+                "timeZone": "Asia/Tokyo",
+                "disabled": False,
+            }
         )
         mock_client.post.side_effect = ApiError(500, "Recreate failed")
 
@@ -321,11 +385,18 @@ class TestDeployReleaseConfigs:
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.UPDATED
+        mock_client.get.return_value = _json_response(
+            {
+                "gitCommitish": "main",
+                "cronSchedule": "0 0 * * *",
+                "timeZone": "Asia/Tokyo",
+                "disabled": False,
+            }
+        )
 
         deploy_release_configs(mock_client, config, False, github_output)
 
-        body = mock_client.upsert.call_args.args[4]
+        body = mock_client.patch.call_args.args[1]
         assert "id" not in body
 
     def test_sync_delete_removes_orphans(
@@ -334,15 +405,24 @@ class TestDeployReleaseConfigs:
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.UPDATED
-        list_response = MagicMock()
-        list_response.json.return_value = {
-            "releaseConfigs": [
-                {"name": f"{mock_client.parent}/releaseConfigs/production"},
-                {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
-            ]
-        }
-        mock_client.get.return_value = list_response
+        mock_client.get.side_effect = [
+            _json_response(
+                {
+                    "gitCommitish": "main",
+                    "cronSchedule": "0 0 * * *",
+                    "timeZone": "Asia/Tokyo",
+                    "disabled": False,
+                }
+            ),
+            _json_response(
+                {
+                    "releaseConfigs": [
+                        {"name": f"{mock_client.parent}/releaseConfigs/production"},
+                        {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
+                    ]
+                }
+            ),
+        ]
 
         deploy_release_configs(mock_client, config, True, github_output)
 
@@ -355,14 +435,23 @@ class TestDeployReleaseConfigs:
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.UPDATED
-        list_response = MagicMock()
-        list_response.json.return_value = {
-            "releaseConfigs": [
-                {"name": f"{mock_client.parent}/releaseConfigs/production"},
-            ]
-        }
-        mock_client.get.return_value = list_response
+        mock_client.get.side_effect = [
+            _json_response(
+                {
+                    "gitCommitish": "main",
+                    "cronSchedule": "0 0 * * *",
+                    "timeZone": "Asia/Tokyo",
+                    "disabled": False,
+                }
+            ),
+            _json_response(
+                {
+                    "releaseConfigs": [
+                        {"name": f"{mock_client.parent}/releaseConfigs/production"},
+                    ]
+                }
+            ),
+        ]
 
         deploy_release_configs(mock_client, config, True, github_output)
 
@@ -374,8 +463,17 @@ class TestDeployReleaseConfigs:
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.UPDATED
-        mock_client.get.side_effect = ApiError(500, "List failed")
+        mock_client.get.side_effect = [
+            _json_response(
+                {
+                    "gitCommitish": "main",
+                    "cronSchedule": "0 0 * * *",
+                    "timeZone": "Asia/Tokyo",
+                    "disabled": False,
+                }
+            ),
+            ApiError(500, "List failed"),
+        ]
 
         deploy_release_configs(mock_client, config, True, github_output)
 
@@ -405,18 +503,22 @@ class TestDeployReleaseConfigs:
             """
         )
         config = ConfigLoader.load(config_file)
-        mock_client.upsert.return_value = UpsertResult.UPDATED
+        mock_client.get.return_value = _json_response(
+            {
+                "gitCommitish": "main",
+                "disabled": True,
+            }
+        )
 
         deploy_release_configs(mock_client, config, False, github_output)
 
-        assert mock_client.upsert.call_args.args[4] == {
+        assert mock_client.patch.call_args.args[1] == {
             "gitCommitish": "main",
             "disabled": True,
         }
-        assert (
-            mock_client.upsert.call_args.kwargs["update_mask"]
-            == "gitCommitish,disabled"
-        )
+        assert mock_client.patch.call_args.kwargs["params"] == {
+            "updateMask": "gitCommitish,disabled"
+        }
 
     def test_release_config_without_disabled_defaults_disabled_and_update_mask(
         self, mock_client, github_output, tmp_path
@@ -438,18 +540,22 @@ class TestDeployReleaseConfigs:
             """
         )
         config = ConfigLoader.load(config_file)
-        mock_client.upsert.return_value = UpsertResult.UPDATED
+        mock_client.get.return_value = _json_response(
+            {
+                "gitCommitish": "main",
+                "disabled": False,
+            }
+        )
 
         deploy_release_configs(mock_client, config, False, github_output)
 
-        assert mock_client.upsert.call_args.args[4] == {
+        assert mock_client.patch.call_args.args[1] == {
             "gitCommitish": "main",
             "disabled": False,
         }
-        assert (
-            mock_client.upsert.call_args.kwargs["update_mask"]
-            == "gitCommitish,disabled"
-        )
+        assert mock_client.patch.call_args.kwargs["params"] == {
+            "updateMask": "gitCommitish,disabled"
+        }
 
 
 class TestCompileReleaseConfigs:
@@ -537,11 +643,19 @@ class TestDeployWorkflowConfigs:
         from apply_dataform_workflows.apply import deploy_workflow_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.UPDATED
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "cronSchedule": "0 3 * * *",
+                "timeZone": "Asia/Tokyo",
+                "invocationConfig": {},
+                "disabled": False,
+            }
+        )
 
         deploy_workflow_configs(mock_client, config, False, github_output)
 
-        body = mock_client.upsert.call_args.args[4]
+        body = mock_client.patch.call_args.args[1]
         assert (
             body["releaseConfig"] == f"{mock_client.parent}/releaseConfigs/production"
         )
@@ -550,10 +664,11 @@ class TestDeployWorkflowConfigs:
         assert body["invocationConfig"] == {}
         assert body["disabled"] is False
         assert "id" not in body
-        assert (
-            mock_client.upsert.call_args.kwargs["update_mask"]
-            == "releaseConfig,cronSchedule,timeZone,invocationConfig,disabled"
-        )
+        assert mock_client.patch.call_args.kwargs["params"] == {
+            "updateMask": (
+                "releaseConfig,cronSchedule,timeZone,invocationConfig,disabled"
+            )
+        }
         assert github_output.results[0].detail == "Updated"
 
     def test_deploy_merges_targets_and_options_into_invocation_config(
@@ -589,11 +704,21 @@ class TestDeployWorkflowConfigs:
             """
         )
         config = ConfigLoader.load(config_file)
-        mock_client.upsert.return_value = UpsertResult.UPDATED
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "invocationConfig": {
+                    "includedTargets": [{"name": "users"}],
+                    "transitiveDependenciesIncluded": True,
+                    "fullyRefreshIncrementalTablesEnabled": True,
+                },
+                "disabled": False,
+            }
+        )
 
         deploy_workflow_configs(mock_client, config, False, github_output)
 
-        body = mock_client.upsert.call_args.args[4]
+        body = mock_client.patch.call_args.args[1]
         assert body["invocationConfig"] == {
             "includedTargets": [{"name": "users"}],
             "transitiveDependenciesIncluded": True,
@@ -601,10 +726,9 @@ class TestDeployWorkflowConfigs:
         }
         assert body["disabled"] is False
         assert body["invocationConfig"]["includedTargets"][0]["name"] == "users"
-        assert (
-            mock_client.upsert.call_args.kwargs["update_mask"]
-            == "releaseConfig,invocationConfig,disabled"
-        )
+        assert mock_client.patch.call_args.kwargs["params"] == {
+            "updateMask": "releaseConfig,invocationConfig,disabled"
+        }
 
     def test_deploy_workflow_supports_on_demand_without_schedule(
         self, mock_client, github_output, tmp_path
@@ -635,24 +759,30 @@ class TestDeployWorkflowConfigs:
             """
         )
         config = ConfigLoader.load(config_file)
-        mock_client.upsert.return_value = UpsertResult.UPDATED
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "invocationConfig": {"includedTags": ["daily"]},
+                "disabled": False,
+            }
+        )
 
         deploy_workflow_configs(mock_client, config, False, github_output)
 
-        body = mock_client.upsert.call_args.args[4]
+        body = mock_client.patch.call_args.args[1]
         assert "cronSchedule" not in body
         assert "timeZone" not in body
         assert body["invocationConfig"] == {"includedTags": ["daily"]}
         assert body["disabled"] is False
-        assert (
-            mock_client.upsert.call_args.kwargs["update_mask"]
-            == "releaseConfig,invocationConfig,disabled"
-        )
+        assert mock_client.patch.call_args.kwargs["params"] == {
+            "updateMask": "releaseConfig,invocationConfig,disabled"
+        }
 
     def test_dry_run_records_result(self, mock_client, github_output, fixtures_dir):
         from apply_dataform_workflows.apply import deploy_workflow_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        mock_client.dry_run = True
         mock_client.upsert.return_value = UpsertResult.DRY_RUN
 
         deploy_workflow_configs(mock_client, config, True, github_output)
@@ -671,7 +801,7 @@ class TestDeployWorkflowConfigs:
             summary_path=str(tmp_path / "summary"),
         )
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.CREATED
+        mock_client.get.side_effect = ApiError(404, "Not found")
 
         deploy_workflow_configs(mock_client, config, False, output)
 
@@ -691,7 +821,15 @@ class TestDeployWorkflowConfigs:
             summary_path=str(tmp_path / "summary"),
         )
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.UPDATED
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "cronSchedule": "0 3 * * *",
+                "timeZone": "Asia/Tokyo",
+                "invocationConfig": {},
+                "disabled": False,
+            }
+        )
 
         deploy_workflow_configs(mock_client, config, False, output)
 
@@ -705,15 +843,25 @@ class TestDeployWorkflowConfigs:
         from apply_dataform_workflows.apply import deploy_workflow_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.UPDATED
-        list_response = MagicMock()
-        list_response.json.return_value = {
-            "workflowConfigs": [
-                {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
-                {"name": f"{mock_client.parent}/workflowConfigs/old-workflow"},
-            ]
-        }
-        mock_client.get.return_value = list_response
+        mock_client.get.side_effect = [
+            _json_response(
+                {
+                    "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                    "cronSchedule": "0 3 * * *",
+                    "timeZone": "Asia/Tokyo",
+                    "invocationConfig": {},
+                    "disabled": False,
+                }
+            ),
+            _json_response(
+                {
+                    "workflowConfigs": [
+                        {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
+                        {"name": f"{mock_client.parent}/workflowConfigs/old-workflow"},
+                    ]
+                }
+            ),
+        ]
 
         deploy_workflow_configs(mock_client, config, True, github_output)
 
@@ -726,14 +874,24 @@ class TestDeployWorkflowConfigs:
         from apply_dataform_workflows.apply import deploy_workflow_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.UPDATED
-        list_response = MagicMock()
-        list_response.json.return_value = {
-            "workflowConfigs": [
-                {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
-            ]
-        }
-        mock_client.get.return_value = list_response
+        mock_client.get.side_effect = [
+            _json_response(
+                {
+                    "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                    "cronSchedule": "0 3 * * *",
+                    "timeZone": "Asia/Tokyo",
+                    "invocationConfig": {},
+                    "disabled": False,
+                }
+            ),
+            _json_response(
+                {
+                    "workflowConfigs": [
+                        {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
+                    ]
+                }
+            ),
+        ]
 
         deploy_workflow_configs(mock_client, config, True, github_output)
 
@@ -745,20 +903,26 @@ class TestDeployWorkflowConfigs:
         from apply_dataform_workflows.apply import deploy_workflow_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.side_effect = ApiError(500, "Server error")
+        mock_client.get.side_effect = ApiError(500, "Server error")
 
         deploy_workflow_configs(mock_client, config, False, github_output)
 
         assert github_output.results[0].status == "failed"
 
-    def test_recreates_workflow_config_on_immutable_field_error(
+    def test_recreates_workflow_config_when_invocation_config_changes(
         self, mock_client, github_output, fixtures_dir
     ):
         from apply_dataform_workflows.apply import deploy_workflow_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.side_effect = ApiError(
-            400, "Request contains immutable fields"
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "cronSchedule": "0 3 * * *",
+                "timeZone": "Asia/Tokyo",
+                "invocationConfig": {"includedTags": ["old-tag"]},
+                "disabled": False,
+            }
         )
 
         deploy_workflow_configs(mock_client, config, False, github_output)
@@ -771,16 +935,7 @@ class TestDeployWorkflowConfigs:
             "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
         }
         assert mock_client.method_calls[:3] == [
-            call.upsert(
-                "workflowConfig",
-                "daily-run",
-                "/workflowConfigs",
-                "workflowConfigId",
-                expected_body,
-                update_mask=(
-                    "releaseConfig,cronSchedule,timeZone,invocationConfig,disabled"
-                ),
-            ),
+            call.get("/workflowConfigs/daily-run"),
             call.delete("/workflowConfigs/daily-run"),
             call.post(
                 "/workflowConfigs",
@@ -791,14 +946,20 @@ class TestDeployWorkflowConfigs:
         assert github_output.results[0].status == "success"
         assert github_output.results[0].detail == "Recreated"
 
-    def test_records_failure_when_recreate_after_immutable_field_error_fails(
+    def test_records_failure_when_workflow_recreate_fails(
         self, mock_client, github_output, fixtures_dir
     ):
         from apply_dataform_workflows.apply import deploy_workflow_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.side_effect = ApiError(
-            400, "Request contains immutable fields"
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "cronSchedule": "0 3 * * *",
+                "timeZone": "Asia/Tokyo",
+                "invocationConfig": {"includedTags": ["old-tag"]},
+                "disabled": False,
+            }
         )
         mock_client.post.side_effect = ApiError(500, "Recreate failed")
 
@@ -812,16 +973,7 @@ class TestDeployWorkflowConfigs:
             "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
         }
         assert mock_client.method_calls[:3] == [
-            call.upsert(
-                "workflowConfig",
-                "daily-run",
-                "/workflowConfigs",
-                "workflowConfigId",
-                expected_body,
-                update_mask=(
-                    "releaseConfig,cronSchedule,timeZone,invocationConfig,disabled"
-                ),
-            ),
+            call.get("/workflowConfigs/daily-run"),
             call.delete("/workflowConfigs/daily-run"),
             call.post(
                 "/workflowConfigs",
@@ -838,8 +990,18 @@ class TestDeployWorkflowConfigs:
         from apply_dataform_workflows.apply import deploy_workflow_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.upsert.return_value = UpsertResult.UPDATED
-        mock_client.get.side_effect = ApiError(500, "List failed")
+        mock_client.get.side_effect = [
+            _json_response(
+                {
+                    "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                    "cronSchedule": "0 3 * * *",
+                    "timeZone": "Asia/Tokyo",
+                    "invocationConfig": {},
+                    "disabled": False,
+                }
+            ),
+            ApiError(500, "List failed"),
+        ]
 
         deploy_workflow_configs(mock_client, config, True, github_output)
 
@@ -878,19 +1040,24 @@ class TestDeployWorkflowConfigs:
             """
         )
         config = ConfigLoader.load(config_file)
-        mock_client.upsert.return_value = UpsertResult.UPDATED
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "invocationConfig": {"includedTags": ["daily"]},
+                "disabled": True,
+            }
+        )
 
         deploy_workflow_configs(mock_client, config, False, github_output)
 
-        assert mock_client.upsert.call_args.args[4] == {
+        assert mock_client.patch.call_args.args[1] == {
             "invocationConfig": {"includedTags": ["daily"]},
             "disabled": True,
             "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
         }
-        assert (
-            mock_client.upsert.call_args.kwargs["update_mask"]
-            == "releaseConfig,invocationConfig,disabled"
-        )
+        assert mock_client.patch.call_args.kwargs["params"] == {
+            "updateMask": "releaseConfig,invocationConfig,disabled"
+        }
 
     def test_workflow_config_without_disabled_defaults_disabled_and_update_mask(
         self, mock_client, github_output, tmp_path
@@ -921,19 +1088,24 @@ class TestDeployWorkflowConfigs:
             """
         )
         config = ConfigLoader.load(config_file)
-        mock_client.upsert.return_value = UpsertResult.UPDATED
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "invocationConfig": {"includedTags": ["daily"]},
+                "disabled": False,
+            }
+        )
 
         deploy_workflow_configs(mock_client, config, False, github_output)
 
-        assert mock_client.upsert.call_args.args[4] == {
+        assert mock_client.patch.call_args.args[1] == {
             "invocationConfig": {"includedTags": ["daily"]},
             "disabled": False,
             "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
         }
-        assert (
-            mock_client.upsert.call_args.kwargs["update_mask"]
-            == "releaseConfig,invocationConfig,disabled"
-        )
+        assert mock_client.patch.call_args.kwargs["params"] == {
+            "updateMask": "releaseConfig,invocationConfig,disabled"
+        }
 
 
 class TestMain:

@@ -19,9 +19,9 @@ tests/              → pytest tests (test_client.py, test_config.py, test_apply
 
 ### Processing flow (apply.py)
 
-1. Upsert release configurations (GET → PATCH or POST, with delete → recreate fallback when `codeCompilationConfig` is rejected as immutable by the API server)
+1. Upsert release configurations (GET → PATCH or POST, but use delete → recreate when `gitCommitish` or `codeCompilationConfig` changes on an existing resource)
 2. POST compilationResults + PATCH releaseConfig (if `DO_COMPILE=true`)
-3. Upsert workflow configurations (GET → PATCH or POST, with delete → recreate fallback when `invocationConfig` is rejected as immutable by the API server)
+3. Upsert workflow configurations (GET → PATCH or POST, but use delete → recreate when `invocationConfig` changes on an existing resource)
 
 Release configs must exist before workflow configs reference them.
 
@@ -32,7 +32,7 @@ Release configs must exist before workflow configs reference them.
 - **workflow_settings.yaml driven**: `project_id`/`location` from `defaultProject`/`defaultLocation`. Explicit inputs override.
 - **Auth**: ADC via `google-auth` + `AuthorizedSession`. Assumes `GOOGLE_APPLICATION_CREDENTIALS` is set by `google-github-actions/auth`.
 - **Sync-delete**: When `sync_delete` is true, configs not in JSON are deleted from Google Cloud.
-- **Immutable-field workaround**: The Dataform API server can reject `releaseConfig.codeCompilationConfig` and `workflowConfig.invocationConfig` changes as immutable during `PATCH`, even though the resources have patch endpoints. In that case `apply.py` falls back to delete + recreate to keep the JSON config authoritative.
+- **Immutable-update handling**: `apply.py` compares the current API resource before updating. For release configs, changes to `gitCommitish` or `codeCompilationConfig` use delete + recreate; for workflow configs, changes to `invocationConfig` use delete + recreate. This keeps the JSON config authoritative without relying on a later PATCH error from the API server.
 
 ## Linting & testing
 
