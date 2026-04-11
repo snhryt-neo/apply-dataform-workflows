@@ -83,6 +83,13 @@ def _build_update_mask(body: dict, allowed_fields: tuple[str, ...]) -> str:
     return ",".join(field for field in allowed_fields if field in body)
 
 
+def _is_immutable_field_error(error: ApiError) -> bool:
+    # Dataform exposes PATCH for both resources, but the API server rejects
+    # some nested field changes as immutable. We match the observed error text
+    # and fall back to delete + recreate for those specific cases.
+    return "immutable fields" in error.message.lower()
+
+
 def deploy_release_configs(
     client: DataformApiClient,
     config: DeployConfig,
@@ -131,11 +138,47 @@ def deploy_release_configs(
                     StepResult("1/3", f"releaseConfig: {rc.id}", "success", detail)
                 )
         except ApiError as e:
-            print(f"::error::Failed to deploy releaseConfig '{rc.id}': {e.message}")
-            failed.append(rc.id)
-            output.add_result(
-                StepResult("1/3", f"releaseConfig: {rc.id}", "failed", "Failed")
-            )
+            if _is_immutable_field_error(e):
+                # The Dataform API returns an immutable-field error when
+                # codeCompilationConfig changes on an existing releaseConfig.
+                # Recreate the resource so the JSON file remains the source of
+                # truth even when PATCH cannot apply the diff.
+                print(
+                    f"  releaseConfig '{rc.id}' contains immutable field changes"
+                    f" (code_compilation_config). Deleting and recreating..."
+                )
+                try:
+                    client.delete(f"/releaseConfigs/{rc.id}")
+                    print(f"  Deleted releaseConfig: {rc.id}")
+                    client.post(
+                        "/releaseConfigs",
+                        rc.body,
+                        params={"releaseConfigId": rc.id},
+                    )
+                    print(f"  Recreated releaseConfig: {rc.id}")
+                    created.append(rc.id)
+                    output.add_result(
+                        StepResult(
+                            "1/3", f"releaseConfig: {rc.id}", "success", "Recreated"
+                        )
+                    )
+                except ApiError as recreate_err:
+                    print(
+                        f"::error::Failed to recreate releaseConfig '{rc.id}':"
+                        f" {recreate_err.message}"
+                    )
+                    failed.append(rc.id)
+                    output.add_result(
+                        StepResult(
+                            "1/3", f"releaseConfig: {rc.id}", "failed", "Failed"
+                        )
+                    )
+            else:
+                print(f"::error::Failed to deploy releaseConfig '{rc.id}': {e.message}")
+                failed.append(rc.id)
+                output.add_result(
+                    StepResult("1/3", f"releaseConfig: {rc.id}", "failed", "Failed")
+                )
 
     # Sync-delete orphaned release configs
     deleted = []
@@ -311,9 +354,11 @@ def deploy_workflow_configs(
                     StepResult("3/3", f"workflowConfig: {wc.id}", "success", detail)
                 )
         except ApiError as e:
-            if "immutable fields" in e.message:
-                # invocation_config is treated as immutable by the API server,
-                # so delete the existing resource and recreate it
+            if _is_immutable_field_error(e):
+                # The Dataform API returns an immutable-field error when
+                # invocationConfig changes on an existing workflowConfig.
+                # Recreate the resource so the JSON file remains the source of
+                # truth even when PATCH cannot apply the diff.
                 print(
                     f"  workflowConfig '{wc.id}' contains immutable field changes"
                     f" (invocation_config). Deleting and recreating..."

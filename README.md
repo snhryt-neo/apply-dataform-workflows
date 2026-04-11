@@ -76,9 +76,16 @@ sequenceDiagram
         Action->>API: GET releaseConfig
         alt exists in GET response
             Action->>API: PATCH releaseConfig
+            alt PATCH rejected with immutable field error<br/>(codeCompilationConfig)
+                Action-->>API: DELETE releaseConfig
+                Action->>API: POST releaseConfig
+            else PATCH succeeds
+                API-->>Action: Updated
+            end
         else not in GET response
             Action->>API: POST releaseConfig
-        else not in JSON & sync_delete: true
+        end
+        opt not in JSON & sync_delete: true
             Action-->>API: DELETE releaseConfig
         end
     end
@@ -94,9 +101,16 @@ sequenceDiagram
         Action->>API: GET workflowConfig
         alt exists in GET response
             Action->>API: PATCH workflowConfig
+            alt PATCH rejected with immutable field error<br/>(invocationConfig)
+                Action-->>API: DELETE workflowConfig
+                Action->>API: POST workflowConfig
+            else PATCH succeeds
+                API-->>Action: Updated
+            end
         else not in GET response
             Action->>API: POST workflowConfig
-        else not in JSON & sync_delete: true
+        end
+        opt not in JSON & sync_delete: true
             Action-->>API: DELETE workflowConfig
         end
     end
@@ -105,6 +119,8 @@ sequenceDiagram
 Release configs are deployed before workflow configs, so references within the same JSON file are resolved safely.
 
 When `compile: true` is set, Step 2 compiles each release config and updates `releaseCompilationResult`. This is useful for reflecting code changes immediately on push.
+
+If the Dataform API rejects `PATCH` with an immutable-field error for `releaseConfig.codeCompilationConfig` or `workflowConfig.invocationConfig`, the action transparently falls back to delete + recreate so the JSON file remains the effective source of truth.
 
 > [!NOTE]
 > In line with the design principle of treating the JSON file as the Single Source of Truth (SSoT), `sync_delete` is enabled by default. When enabled, release configurations and workflow configurations that exist on Google Cloud but are not in the JSON file are **automatically deleted**.

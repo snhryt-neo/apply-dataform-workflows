@@ -254,6 +254,70 @@ class TestDeployReleaseConfigs:
 
         assert github_output.results[0].status == "failed"
 
+    def test_recreates_release_config_on_immutable_field_error(
+        self, mock_client, github_output, fixtures_dir
+    ):
+        from apply_dataform_workflows.apply import deploy_release_configs
+
+        config = ConfigLoader.load(fixtures_dir / "config_advanced.json")
+        mock_client.upsert.side_effect = [
+            UpsertResult.UPDATED,
+            ApiError(
+                400,
+                "Request update_mask contains immutable fields:"
+                " [code_compilation_config]",
+            ),
+        ]
+
+        deploy_release_configs(mock_client, config, False, github_output)
+
+        expected_body = {
+            "gitCommitish": "develop",
+            "codeCompilationConfig": {
+                "defaultDatabase": "my-project-dev",
+                "schemaSuffix": "_dev",
+                "vars": {"env": "development"},
+            },
+            "disabled": False,
+        }
+        assert mock_client.method_calls[1:4] == [
+            call.upsert(
+                "releaseConfig",
+                "development",
+                "/releaseConfigs",
+                "releaseConfigId",
+                expected_body,
+                update_mask="gitCommitish,codeCompilationConfig,disabled",
+            ),
+            call.delete("/releaseConfigs/development"),
+            call.post(
+                "/releaseConfigs",
+                expected_body,
+                params={"releaseConfigId": "development"},
+            ),
+        ]
+        assert github_output.results[1].status == "success"
+        assert github_output.results[1].detail == "Recreated"
+
+    def test_records_failure_when_recreate_after_release_immutable_error_fails(
+        self, mock_client, github_output, fixtures_dir
+    ):
+        from apply_dataform_workflows.apply import deploy_release_configs
+
+        config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        mock_client.upsert.side_effect = ApiError(
+            400,
+            "Request update_mask contains immutable fields:"
+            " [code_compilation_config]",
+        )
+        mock_client.post.side_effect = ApiError(500, "Recreate failed")
+
+        deploy_release_configs(mock_client, config, False, github_output)
+
+        assert mock_client.delete.called
+        assert mock_client.post.called
+        assert github_output.results[0].status == "failed"
+
     def test_strips_id_from_body(self, mock_client, github_output, fixtures_dir):
         from apply_dataform_workflows.apply import deploy_release_configs
 
