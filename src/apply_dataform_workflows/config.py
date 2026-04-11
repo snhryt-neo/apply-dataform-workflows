@@ -238,17 +238,17 @@ class ConfigLoader:
                 if isinstance(action, str):
                     target = ConfigLoader._normalize_workflow_target(
                         {
-                            **({"projectId": project_id} if project_id else {}),
-                            **(
-                                {"datasetId": default_dataset}
-                                if default_dataset
-                                else {}
-                            ),
                             "name": action,
-                        }
+                        },
+                        default_database=project_id,
+                        default_schema=default_dataset,
                     )
                 else:
-                    target = ConfigLoader._normalize_workflow_target(action)
+                    target = ConfigLoader._normalize_workflow_target(
+                        action,
+                        default_database=project_id,
+                        default_schema=default_dataset,
+                    )
                 result.append(target)
             invocation_config["includedTargets"] = result
             return
@@ -257,10 +257,14 @@ class ConfigLoader:
         invocation_config.pop("includedTargets", None)
 
     @staticmethod
-    def _normalize_workflow_target(action: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_workflow_target(
+        action: dict[str, Any],
+        default_database: str | None = None,
+        default_schema: str | None = None,
+    ) -> dict[str, Any]:
         target = dict(action)
-        if "projectId" in target and "database" not in target:
-            target["database"] = target.pop("projectId")
-        if "datasetId" in target and "schema" not in target:
-            target["schema"] = target.pop("datasetId")
+        if target.get("database") is None and default_database is not None:
+            target["database"] = default_database
+        if target.get("schema") is None and default_schema is not None:
+            target["schema"] = default_schema
         return target

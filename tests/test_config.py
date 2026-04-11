@@ -156,8 +156,6 @@ class TestConfigLoaderLoad:
         config = ConfigLoader.load(fixtures_dir / "config_advanced.json")
         wc = next(wc for wc in config.workflow_configs if wc.id == "mart-daily")
         assert wc.body["invocationConfig"]["includedTargets"][0]["name"] == "users"
-        assert "projectId" not in wc.body["invocationConfig"]["includedTargets"][0]
-        assert "datasetId" not in wc.body["invocationConfig"]["includedTargets"][0]
 
     def test_load_converts_full_round_trip_to_api_shape(self, fixtures_dir):
         config = ConfigLoader.load(fixtures_dir / "config_advanced.json")
@@ -350,8 +348,8 @@ class TestConfigLoaderLoad:
                                 "actions": [
                                     {
                                         "name": "users",
-                                        "project_id": "explicit-project",
-                                        "dataset_id": "explicit_ds",
+                                        "database": "explicit-project",
+                                        "schema": "explicit_ds",
                                     }
                                 ]
                             },
@@ -361,7 +359,6 @@ class TestConfigLoaderLoad:
             )
         )
 
-        # project_id / default_dataset are ignored for object entries
         config = ConfigLoader.load(
             config_file, project_id="default-project", default_dataset="default_ds"
         )
@@ -391,8 +388,8 @@ class TestConfigLoaderLoad:
                                 "actions": [
                                     {
                                         "name": "users",
-                                        "project_id": "explicit-project",
-                                        "dataset_id": "explicit_ds",
+                                        "database": "explicit-project",
+                                        "schema": "explicit_ds",
                                     },
                                     "sessions",
                                 ]
@@ -422,7 +419,7 @@ class TestConfigLoaderLoad:
             },
         ]
 
-    def test_load_actions_targets_object_format_accepts_database_and_schema(
+    def test_load_actions_targets_object_missing_database_and_schema_uses_defaults(
         self, tmp_path
     ):
         config_file = tmp_path / "config.json"
@@ -439,8 +436,6 @@ class TestConfigLoaderLoad:
                                 "actions": [
                                     {
                                         "name": "users",
-                                        "database": "explicit-project",
-                                        "schema": "explicit_ds",
                                     }
                                 ]
                             },
@@ -450,15 +445,59 @@ class TestConfigLoaderLoad:
             )
         )
 
-        config = ConfigLoader.load(config_file)
+        config = ConfigLoader.load(
+            config_file, project_id="default-project", default_dataset="default_ds"
+        )
 
         assert config.workflow_configs[0].body["invocationConfig"][
             "includedTargets"
         ] == [
             {
                 "name": "users",
-                "database": "explicit-project",
-                "schema": "explicit_ds",
+                "database": "default-project",
+                "schema": "default_ds",
+            }
+        ]
+
+    def test_load_actions_targets_object_null_database_and_schema_uses_defaults(
+        self, tmp_path
+    ):
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": "prod", "git_ref": "main"}],
+                    "workflow_configs": [
+                        {
+                            "id": "wc1",
+                            "release_config": "prod",
+                            "targets": {
+                                "actions": [
+                                    {
+                                        "name": "users",
+                                        "database": None,
+                                        "schema": None,
+                                    }
+                                ]
+                            },
+                        }
+                    ],
+                }
+            )
+        )
+
+        config = ConfigLoader.load(
+            config_file, project_id="default-project", default_dataset="default_ds"
+        )
+
+        assert config.workflow_configs[0].body["invocationConfig"][
+            "includedTargets"
+        ] == [
+            {
+                "name": "users",
+                "database": "default-project",
+                "schema": "default_ds",
             }
         ]
 

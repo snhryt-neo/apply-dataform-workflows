@@ -31,13 +31,13 @@
         "actions": [
           {
             "name": "users",
-            "project_id": "example-project",
-            "dataset_id": "dataform"
+            "database": "example-project",
+            "schema": "dataform"
           },
           {
             "name": "orders",
-            "project_id": "example-project",
-            "dataset_id": "dataform"
+            "database": "example-project",
+            "schema": "dataform"
           }
         ]
       },
