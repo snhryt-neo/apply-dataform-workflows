@@ -189,7 +189,7 @@ Only one of the three forms can be specified. If multiple are present, the prior
 | Field | Type | Description |
 |-------|------|-------------|
 | `tags` | `string[]` | Select actions by tag |
-| `actions` | `string[]` | Select specific action names |
+| `actions` | `string[]` | Select specific action names, or objects with `name` plus optional `database` / `schema`; omitted or `null` values fall back to `workflow_settings.yaml` `defaultProject` / `defaultDataset` |
 | `is_all` | `boolean` | Run all actions when `true` |
 
 </details>

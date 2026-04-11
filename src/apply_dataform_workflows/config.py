@@ -236,17 +236,35 @@ class ConfigLoader:
             result = []
             for action in targets["actions"]:
                 if isinstance(action, str):
-                    target: dict[str, str] = {
-                        **({"projectId": project_id} if project_id else {}),
-                        **({"datasetId": default_dataset} if default_dataset else {}),
-                        "name": action,
-                    }
+                    target = ConfigLoader._normalize_workflow_target(
+                        {
+                            "name": action,
+                        },
+                        default_database=project_id,
+                        default_schema=default_dataset,
+                    )
                 else:
-                    # Object with explicit name/projectId/datasetId — use as-is
-                    target = action
+                    target = ConfigLoader._normalize_workflow_target(
+                        action,
+                        default_database=project_id,
+                        default_schema=default_dataset,
+                    )
                 result.append(target)
             invocation_config["includedTargets"] = result
             return
 
         invocation_config.pop("includedTags", None)
         invocation_config.pop("includedTargets", None)
+
+    @staticmethod
+    def _normalize_workflow_target(
+        action: dict[str, Any],
+        default_database: str | None = None,
+        default_schema: str | None = None,
+    ) -> dict[str, Any]:
+        target = dict(action)
+        if target.get("database") is None and default_database is not None:
+            target["database"] = default_database
+        if target.get("schema") is None and default_schema is not None:
+            target["schema"] = default_schema
+        return target

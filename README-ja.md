@@ -189,7 +189,7 @@ sequenceDiagram
 | フィールド | 型 | 説明 |
 |-----------|-----|------|
 | `tags` | `string[]` | タグでアクションを選択 |
-| `actions` | `string[]` | 実行するアクション名を直接指定 |
+| `actions` | `string[]` | 実行するアクション名、または `name` に加えて任意で `database` / `schema` を持つオブジェクトを指定。省略または `null` の場合は `workflow_settings.yaml` の `defaultProject` / `defaultDataset` を使います |
 | `is_all` | `boolean` | true の場合はすべてのアクションを実行 |
 
 

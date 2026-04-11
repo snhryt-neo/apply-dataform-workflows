@@ -303,8 +303,8 @@ class TestConfigLoaderLoad:
         assert config.workflow_configs[0].body["invocationConfig"][
             "includedTargets"
         ] == [
-            {"projectId": "my-project", "datasetId": "my_dataset", "name": "users"},
-            {"projectId": "my-project", "datasetId": "my_dataset", "name": "sessions"},
+            {"database": "my-project", "schema": "my_dataset", "name": "users"},
+            {"database": "my-project", "schema": "my_dataset", "name": "sessions"},
         ]
 
     def test_load_actions_targets_dataset_only_when_no_project(self, tmp_path):
@@ -331,7 +331,7 @@ class TestConfigLoaderLoad:
 
         assert config.workflow_configs[0].body["invocationConfig"][
             "includedTargets"
-        ] == [{"datasetId": "my_dataset", "name": "users"}]
+        ] == [{"schema": "my_dataset", "name": "users"}]
 
     def test_load_actions_targets_object_format_used_as_is(self, tmp_path):
         config_file = tmp_path / "config.json"
@@ -348,8 +348,8 @@ class TestConfigLoaderLoad:
                                 "actions": [
                                     {
                                         "name": "users",
-                                        "project_id": "explicit-project",
-                                        "dataset_id": "explicit_ds",
+                                        "database": "explicit-project",
+                                        "schema": "explicit_ds",
                                     }
                                 ]
                             },
@@ -359,7 +359,6 @@ class TestConfigLoaderLoad:
             )
         )
 
-        # project_id / default_dataset are ignored for object entries
         config = ConfigLoader.load(
             config_file, project_id="default-project", default_dataset="default_ds"
         )
@@ -369,8 +368,8 @@ class TestConfigLoaderLoad:
         ] == [
             {
                 "name": "users",
-                "projectId": "explicit-project",
-                "datasetId": "explicit_ds",
+                "database": "explicit-project",
+                "schema": "explicit_ds",
             }
         ]
 
@@ -389,8 +388,8 @@ class TestConfigLoaderLoad:
                                 "actions": [
                                     {
                                         "name": "users",
-                                        "project_id": "explicit-project",
-                                        "dataset_id": "explicit_ds",
+                                        "database": "explicit-project",
+                                        "schema": "explicit_ds",
                                     },
                                     "sessions",
                                 ]
@@ -410,14 +409,96 @@ class TestConfigLoaderLoad:
         ] == [
             {
                 "name": "users",
-                "projectId": "explicit-project",
-                "datasetId": "explicit_ds",
+                "database": "explicit-project",
+                "schema": "explicit_ds",
             },
             {
-                "projectId": "default-project",
-                "datasetId": "default_ds",
+                "database": "default-project",
+                "schema": "default_ds",
                 "name": "sessions",
             },
+        ]
+
+    def test_load_actions_targets_object_missing_database_and_schema_uses_defaults(
+        self, tmp_path
+    ):
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": "prod", "git_ref": "main"}],
+                    "workflow_configs": [
+                        {
+                            "id": "wc1",
+                            "release_config": "prod",
+                            "targets": {
+                                "actions": [
+                                    {
+                                        "name": "users",
+                                    }
+                                ]
+                            },
+                        }
+                    ],
+                }
+            )
+        )
+
+        config = ConfigLoader.load(
+            config_file, project_id="default-project", default_dataset="default_ds"
+        )
+
+        assert config.workflow_configs[0].body["invocationConfig"][
+            "includedTargets"
+        ] == [
+            {
+                "name": "users",
+                "database": "default-project",
+                "schema": "default_ds",
+            }
+        ]
+
+    def test_load_actions_targets_object_null_database_and_schema_uses_defaults(
+        self, tmp_path
+    ):
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": "prod", "git_ref": "main"}],
+                    "workflow_configs": [
+                        {
+                            "id": "wc1",
+                            "release_config": "prod",
+                            "targets": {
+                                "actions": [
+                                    {
+                                        "name": "users",
+                                        "database": None,
+                                        "schema": None,
+                                    }
+                                ]
+                            },
+                        }
+                    ],
+                }
+            )
+        )
+
+        config = ConfigLoader.load(
+            config_file, project_id="default-project", default_dataset="default_ds"
+        )
+
+        assert config.workflow_configs[0].body["invocationConfig"][
+            "includedTargets"
+        ] == [
+            {
+                "name": "users",
+                "database": "default-project",
+                "schema": "default_ds",
+            }
         ]
 
     def test_load_actions_targets_name_only_when_no_project_or_dataset(self, tmp_path):
