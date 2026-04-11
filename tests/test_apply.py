@@ -307,8 +307,7 @@ class TestDeployReleaseConfigs:
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
         mock_client.upsert.side_effect = ApiError(
             400,
-            "Request update_mask contains immutable fields:"
-            " [code_compilation_config]",
+            "Request update_mask contains immutable fields: [code_compilation_config]",
         )
         mock_client.post.side_effect = ApiError(500, "Recreate failed")
 

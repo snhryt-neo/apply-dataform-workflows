@@ -169,9 +169,7 @@ def deploy_release_configs(
                     )
                     failed.append(rc.id)
                     output.add_result(
-                        StepResult(
-                            "1/3", f"releaseConfig: {rc.id}", "failed", "Failed"
-                        )
+                        StepResult("1/3", f"releaseConfig: {rc.id}", "failed", "Failed")
                     )
             else:
                 print(f"::error::Failed to deploy releaseConfig '{rc.id}': {e.message}")
