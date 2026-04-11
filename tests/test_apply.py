@@ -156,7 +156,7 @@ class TestDeployReleaseConfigs:
                 "timeZone": "Asia/Tokyo",
                 "disabled": False,
             },
-            params={"updateMask": "gitCommitish,cronSchedule,timeZone,disabled"},
+            params={"updateMask": "cronSchedule,timeZone,disabled"},
         )
         assert any(result.status == "success" for result in github_output.results)
         assert github_output.results[0].detail == "Updated"
@@ -517,7 +517,7 @@ class TestDeployReleaseConfigs:
             "disabled": True,
         }
         assert mock_client.patch.call_args.kwargs["params"] == {
-            "updateMask": "gitCommitish,disabled"
+            "updateMask": "disabled"
         }
 
     def test_release_config_without_disabled_defaults_disabled_and_update_mask(
@@ -554,7 +554,7 @@ class TestDeployReleaseConfigs:
             "disabled": False,
         }
         assert mock_client.patch.call_args.kwargs["params"] == {
-            "updateMask": "gitCommitish,disabled"
+            "updateMask": "disabled"
         }
 
 
