@@ -52,6 +52,9 @@ To solve these issues, this action provides Dataform maintainers with a lightwei
 
 > [!IMPORTANT]
 > This action does not handle Google Cloud authentication. Use [`google-github-actions/auth`](https://github.com/google-github-actions/auth) beforehand.
+> Before using this action, create and configure your Workload Identity Provider and the Google Cloud service account to impersonate.
+> In the standard case, that service account should have IAM permissions equivalent to Dataform Admin (`roles/dataform.admin`).
+> If [strict act-as mode](https://docs.cloud.google.com/dataform/docs/strict-act-as-mode) is enabled and your workflow configuration uses a custom execution service account, also grant the impersonated service account `roles/iam.serviceAccountUser` on that execution service account.
 
 ```yaml
 - name: Apply Dataform release / workflow configurations

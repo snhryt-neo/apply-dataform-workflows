@@ -52,6 +52,9 @@
 
 > [!IMPORTANT]
 > このアクションには Google Cloud の認証は含まれません。事前に [`google-github-actions/auth`](https://github.com/google-github-actions/auth) で認証を済ませてください。
+> 事前に、Workload Identity Provider と、それに紐づけて impersonate する Google Cloud のサービスアカウントを作成・設定しておいてください。
+> 標準的には、そのサービスアカウントに `Dataform 管理者` (`roles/dataform.admin`) 相当の IAM 権限が必要です。
+> [厳格な act-as モード](https://docs.cloud.google.com/dataform/docs/strict-act-as-mode) が有効で、ワークフロー構成でカスタムの実行用サービスアカウントを使う場合は、追加でその実行用サービスアカウントに対する `roles/iam.serviceAccountUser` も必要です。
 
 ```yaml
 - name: Apply Dataform release / workflow configurations
