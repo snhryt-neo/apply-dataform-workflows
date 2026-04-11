@@ -76,9 +76,16 @@ sequenceDiagram
         Action->>API: GET releaseConfig
         alt GET レスポンスに存在する
             Action->>API: PATCH releaseConfig
+            alt PATCH が immutable field error で失敗<br/>（codeCompilationConfig）
+                Action-->>API: DELETE releaseConfig
+                Action->>API: POST releaseConfig
+            else PATCH 成功
+                API-->>Action: Updated
+            end
         else GET レスポンスに存在しない
             Action->>API: POST releaseConfig
-        else JSON に存在しない & sync_delete: true
+        end
+        opt JSON に存在しない & sync_delete: true
             Action-->>API: DELETE releaseConfig
         end
     end
@@ -94,9 +101,16 @@ sequenceDiagram
         Action->>API: GET workflowConfig
         alt GET レスポンスに存在する
             Action->>API: PATCH workflowConfig
+            alt PATCH が immutable field error で失敗<br/>（invocationConfig）
+                Action-->>API: DELETE workflowConfig
+                Action->>API: POST workflowConfig
+            else PATCH 成功
+                API-->>Action: Updated
+            end
         else GET レスポンスに存在しない
             Action->>API: POST workflowConfig
-        else JSON に存在しない & sync_delete: true
+        end
+        opt JSON に存在しない & sync_delete: true
             Action-->>API: DELETE workflowConfig
         end
     end
@@ -105,6 +119,8 @@ sequenceDiagram
 リリース構成はワークフロー構成より先にデプロイされるため、同一 JSON 内での参照が安全に解決されます。
 
 `compile: true` を指定すると、Step 2 で各リリース構成に対してオンデマンドのコンパイルを実行し、コンパイルの結果を更新します。push 時にコードの即時反映が必要な場合に有効です。
+
+Dataform API が `releaseConfig.codeCompilationConfig` または `workflowConfig.invocationConfig` の更新に対して immutable-field error を返した場合、この Action は透過的に `delete + recreate` にフォールバックし、JSON ファイルを実質的な Single Source of Truth として維持します。
 
 > [!NOTE]
 > JSON ファイルを Single Source of Truth (SSoT) として運用する思想のため、 `sync_delete` オプションはデフォルトで有効化されています。このオプションが有効化されている場合、クラウド上に存在するが JSON に含まれないリリース構成およびワークフロー構成は**自動的に削除されます。**
