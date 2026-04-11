@@ -61,7 +61,21 @@
               "tags": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
               "actions": {
                 "type": "array",
-                "items": { "type": "string" },
+                "items": {
+                  "oneOf": [
+                    { "type": "string" },
+                    {
+                      "type": "object",
+                      "required": ["name"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "name": { "type": "string" },
+                        "project_id": { "type": "string" },
+                        "dataset_id": { "type": "string" }
+                      }
+                    }
+                  ]
+                },
                 "minItems": 1
               },
               "is_all": { "const": true }

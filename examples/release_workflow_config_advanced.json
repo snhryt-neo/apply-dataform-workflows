@@ -29,8 +29,16 @@
       "timezone": "Asia/Tokyo",
       "targets": {
         "actions": [
-          "users",
-          "orders"
+          {
+            "name": "users",
+            "project_id": "example-project",
+            "dataset_id": "dataform"
+          },
+          {
+            "name": "orders",
+            "project_id": "example-project",
+            "dataset_id": "dataform"
+          }
         ]
       },
       "options": {
