@@ -5,7 +5,7 @@ import os
 import sys
 from dataclasses import dataclass
 
-from apply_dataform_workflows.client import ApiError, DataformApiClient, UpsertResult
+from apply_dataform_workflows.client import ApiError, DataformApiClient
 from apply_dataform_workflows.config import (
     ConfigLoader,
     DeployConfig,
@@ -83,6 +83,32 @@ def _build_update_mask(body: dict, allowed_fields: tuple[str, ...]) -> str:
     return ",".join(field for field in allowed_fields if field in body)
 
 
+def _get_existing_resource(
+    client: DataformApiClient, resource_path: str
+) -> dict | None:
+    try:
+        return client.get(resource_path).json()
+    except ApiError as error:
+        if error.status_code == 404:
+            return None
+        raise
+
+
+def _release_config_requires_recreate(existing: dict, desired: dict) -> bool:
+    # The Dataform API exposes PATCH for release configs, but updates to
+    # gitCommitish and codeCompilationConfig are safer to handle via explicit
+    # delete + recreate than by relying on a later immutable-field error.
+    return existing.get("gitCommitish") != desired.get("gitCommitish") or existing.get(
+        "codeCompilationConfig"
+    ) != desired.get("codeCompilationConfig")
+
+
+def _workflow_config_requires_recreate(existing: dict, desired: dict) -> bool:
+    # invocationConfig follows the same pattern: detect the change before PATCH
+    # so the recreate path is deterministic and visible in the apply flow.
+    return existing.get("invocationConfig") != desired.get("invocationConfig")
+
+
 def deploy_release_configs(
     client: DataformApiClient,
     config: DeployConfig,
@@ -97,39 +123,76 @@ def deploy_release_configs(
     failed = []
 
     for rc in config.release_configs:
+        resource_path = f"/releaseConfigs/{rc.id}"
         try:
-            update_mask = _build_update_mask(
-                rc.body,
-                (
-                    "gitCommitish",
-                    "cronSchedule",
-                    "timeZone",
-                    "codeCompilationConfig",
-                    "disabled",
-                ),
-            )
-            result = client.upsert(
-                "releaseConfig",
-                rc.id,
-                "/releaseConfigs",
-                "releaseConfigId",
-                rc.body,
-                update_mask=update_mask,
-            )
-            if result == UpsertResult.DRY_RUN:
+            if client.dry_run:
+                update_mask = _build_update_mask(
+                    rc.body,
+                    (
+                        "gitCommitish",
+                        "cronSchedule",
+                        "timeZone",
+                        "codeCompilationConfig",
+                        "disabled",
+                    ),
+                )
+                client.upsert(
+                    "releaseConfig",
+                    rc.id,
+                    "/releaseConfigs",
+                    "releaseConfigId",
+                    rc.body,
+                    update_mask=update_mask,
+                )
                 output.add_result(
                     StepResult("1/3", f"releaseConfig: {rc.id}", "dry_run", "Dry run")
                 )
-            else:
-                if result == UpsertResult.CREATED:
-                    created.append(rc.id)
-                    detail = "Created"
-                else:
-                    updated.append(rc.id)
-                    detail = "Updated"
-                output.add_result(
-                    StepResult("1/3", f"releaseConfig: {rc.id}", "success", detail)
+                continue
+
+            existing = _get_existing_resource(client, resource_path)
+            if existing is None:
+                print(f"  Creating releaseConfig: {rc.id}")
+                client.post(
+                    "/releaseConfigs", rc.body, params={"releaseConfigId": rc.id}
                 )
+                print(f"  Created releaseConfig: {rc.id}")
+                created.append(rc.id)
+                detail = "Created"
+            elif _release_config_requires_recreate(existing, rc.body):
+                print(
+                    "  releaseConfig"
+                    f" '{rc.id}' changes immutable-update fields"
+                    " (gitCommitish/codeCompilationConfig)."
+                    " Deleting and recreating..."
+                )
+                client.delete(resource_path)
+                print(f"  Deleted releaseConfig: {rc.id}")
+                client.post(
+                    "/releaseConfigs", rc.body, params={"releaseConfigId": rc.id}
+                )
+                print(f"  Recreated releaseConfig: {rc.id}")
+                created.append(rc.id)
+                detail = "Recreated"
+            else:
+                print(f"  Updating releaseConfig: {rc.id}")
+                update_mask = _build_update_mask(
+                    rc.body,
+                    (
+                        "gitCommitish",
+                        "cronSchedule",
+                        "timeZone",
+                        "codeCompilationConfig",
+                        "disabled",
+                    ),
+                )
+                client.patch(resource_path, rc.body, params={"updateMask": update_mask})
+                print(f"  Updated releaseConfig: {rc.id}")
+                updated.append(rc.id)
+                detail = "Updated"
+
+            output.add_result(
+                StepResult("1/3", f"releaseConfig: {rc.id}", "success", detail)
+            )
         except ApiError as e:
             print(f"::error::Failed to deploy releaseConfig '{rc.id}': {e.message}")
             failed.append(rc.id)
@@ -276,80 +339,82 @@ def deploy_workflow_configs(
     for wc in config.workflow_configs:
         fqn = f"{client.parent}/releaseConfigs/{wc.release_config}"
         body = {**wc.body, "releaseConfig": fqn}
+        resource_path = f"/workflowConfigs/{wc.id}"
 
         try:
-            update_mask = _build_update_mask(
-                body,
-                (
-                    "releaseConfig",
-                    "cronSchedule",
-                    "timeZone",
-                    "invocationConfig",
-                    "disabled",
-                ),
-            )
-            result = client.upsert(
-                "workflowConfig",
-                wc.id,
-                "/workflowConfigs",
-                "workflowConfigId",
-                body,
-                update_mask=update_mask,
-            )
-            if result == UpsertResult.DRY_RUN:
+            if client.dry_run:
+                update_mask = _build_update_mask(
+                    body,
+                    (
+                        "releaseConfig",
+                        "cronSchedule",
+                        "timeZone",
+                        "invocationConfig",
+                        "disabled",
+                    ),
+                )
+                client.upsert(
+                    "workflowConfig",
+                    wc.id,
+                    "/workflowConfigs",
+                    "workflowConfigId",
+                    body,
+                    update_mask=update_mask,
+                )
                 output.add_result(
                     StepResult("3/3", f"workflowConfig: {wc.id}", "dry_run", "Dry run")
                 )
-            else:
-                if result == UpsertResult.CREATED:
-                    created.append(wc.id)
-                    detail = "Created"
-                else:
-                    updated.append(wc.id)
-                    detail = "Updated"
-                output.add_result(
-                    StepResult("3/3", f"workflowConfig: {wc.id}", "success", detail)
+                continue
+
+            existing = _get_existing_resource(client, resource_path)
+            if existing is None:
+                print(f"  Creating workflowConfig: {wc.id}")
+                client.post(
+                    "/workflowConfigs", body, params={"workflowConfigId": wc.id}
                 )
+                print(f"  Created workflowConfig: {wc.id}")
+                created.append(wc.id)
+                detail = "Created"
+            elif _workflow_config_requires_recreate(existing, body):
+                print(
+                    "  workflowConfig"
+                    f" '{wc.id}' changes immutable-update field"
+                    " (invocationConfig). Deleting and recreating..."
+                )
+                client.delete(resource_path)
+                print(f"  Deleted workflowConfig: {wc.id}")
+                client.post(
+                    "/workflowConfigs", body, params={"workflowConfigId": wc.id}
+                )
+                print(f"  Recreated workflowConfig: {wc.id}")
+                created.append(wc.id)
+                detail = "Recreated"
+            else:
+                print(f"  Updating workflowConfig: {wc.id}")
+                update_mask = _build_update_mask(
+                    body,
+                    (
+                        "releaseConfig",
+                        "cronSchedule",
+                        "timeZone",
+                        "invocationConfig",
+                        "disabled",
+                    ),
+                )
+                client.patch(resource_path, body, params={"updateMask": update_mask})
+                print(f"  Updated workflowConfig: {wc.id}")
+                updated.append(wc.id)
+                detail = "Updated"
+
+            output.add_result(
+                StepResult("3/3", f"workflowConfig: {wc.id}", "success", detail)
+            )
         except ApiError as e:
-            if "immutable fields" in e.message:
-                # invocation_config is treated as immutable by the API server,
-                # so delete the existing resource and recreate it
-                print(
-                    f"  workflowConfig '{wc.id}' contains immutable field changes"
-                    f" (invocation_config). Deleting and recreating..."
-                )
-                try:
-                    client.delete(f"/workflowConfigs/{wc.id}")
-                    print(f"  Deleted workflowConfig: {wc.id}")
-                    client.post(
-                        "/workflowConfigs", body, params={"workflowConfigId": wc.id}
-                    )
-                    print(f"  Recreated workflowConfig: {wc.id}")
-                    created.append(wc.id)
-                    output.add_result(
-                        StepResult(
-                            "3/3", f"workflowConfig: {wc.id}", "success", "Recreated"
-                        )
-                    )
-                except ApiError as recreate_err:
-                    print(
-                        f"::error::Failed to recreate workflowConfig '{wc.id}':",
-                        f" {recreate_err.message}",
-                    )
-                    failed.append(wc.id)
-                    output.add_result(
-                        StepResult(
-                            "3/3", f"workflowConfig: {wc.id}", "failed", "Failed"
-                        )
-                    )
-            else:
-                print(
-                    f"::error::Failed to deploy workflowConfig '{wc.id}': {e.message}"
-                )
-                failed.append(wc.id)
-                output.add_result(
-                    StepResult("3/3", f"workflowConfig: {wc.id}", "failed", "Failed")
-                )
+            print(f"::error::Failed to deploy workflowConfig '{wc.id}': {e.message}")
+            failed.append(wc.id)
+            output.add_result(
+                StepResult("3/3", f"workflowConfig: {wc.id}", "failed", "Failed")
+            )
 
     # Sync-delete orphaned workflow configs
     deleted = []

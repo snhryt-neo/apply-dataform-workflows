@@ -64,52 +64,50 @@ To solve these issues, this action provides Dataform maintainers with a lightwei
 
 That's it!
 
-## Processing flow
+## Release / Workflow Configurations Update Flow
 
 ```mermaid
-sequenceDiagram
-    participant Action as apply action
-    participant API as Dataform API
+flowchart LR
+    A[Release / Workflow config candidate] --> B{Exists in JSON?}
 
-    rect rgb(235, 245, 255)
-        Note over Action,API: Step 1/3 — release_configs (for each)
-        Action->>API: GET releaseConfig
-        alt exists in GET response
-            Action->>API: PATCH releaseConfig
-        else not in GET response
-            Action->>API: POST releaseConfig
-        else not in JSON & sync_delete: true
-            Action-->>API: DELETE releaseConfig
-        end
-    end
+    B -- Yes --> C{Exists in GET?}
+    B -- No --> D{Exists in GET?}
 
-    rect rgb(235, 245, 255)
-        Note over Action,API: Step 2/3 — compile (optional)
-        Action->>API: POST compilationResults
-        Action->>API: PATCH releaseConfig (releaseCompilationResult)
-    end
+    C --> E{Update immutable field?}
+    C -- No --> F[POST new config]
 
-    rect rgb(235, 245, 255)
-        Note over Action,API: Step 3/3 — workflow_configs (for each)
-        Action->>API: GET workflowConfig
-        alt exists in GET response
-            Action->>API: PATCH workflowConfig
-        else not in GET response
-            Action->>API: POST workflowConfig
-        else not in JSON & sync_delete: true
-            Action-->>API: DELETE workflowConfig
-        end
-    end
+    E -- Yes --> G[DELETE existing config]
+    E -- No --> H[PATCH existing config]
+    G --> F
+
+    D -- Yes --> I{sync_delete?}
+    D -- No --> J[skip]
+
+    I -- Yes --> K[DELETE orphaned config]
+    I -- No --> J
 ```
 
 Release configs are deployed before workflow configs, so references within the same JSON file are resolved safely.
 
-When `compile: true` is set, Step 2 compiles each release config and updates `releaseCompilationResult`. This is useful for reflecting code changes immediately on push.
+For existing release configs, a change in `gitCommitish` or `codeCompilationConfig` is handled with `DELETE -> POST`. For existing workflow configs, a change in `invocationConfig` is handled the same way. Other updates continue to use `PATCH`.
 
 > [!NOTE]
 > In line with the design principle of treating the JSON file as the Single Source of Truth (SSoT), `sync_delete` is enabled by default. When enabled, release configurations and workflow configurations that exist on Google Cloud but are not in the JSON file are **automatically deleted**.
 >
 > Set `sync_delete: false` to disable this behavior and only upsert. Note that in this case the JSON file and Google Cloud will no longer be in full sync.
+
+## Release Compilation
+
+When `compile: true` is set, the action compiles each release config after the release/workflow configuration update step and then patches the release config with the latest `releaseCompilationResult`.
+
+This is useful when you want code changes to be reflected immediately on push.
+
+When `compile: false` is used and release config compilation is left to a scheduler-based process, the following risks should be considered.
+
+- workflows can fail to run due to errors: for example, a workflow may reference newly added tags, actions, or tables that are not yet included in the current `releaseCompilationResult`
+- workflows can run against unintended code: execution may still use an older compilation result that does not match the latest repository state or the intended deployment
+
+To keep the information linked to Dataform up to date, `compile: true` is recommended.
 
 ## Inputs
 

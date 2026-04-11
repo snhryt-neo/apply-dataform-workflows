@@ -19,9 +19,9 @@ tests/              → pytest tests (test_client.py, test_config.py, test_apply
 
 ### Processing flow (apply.py)
 
-1. Upsert release configurations (GET → PATCH or POST)
+1. Upsert release configurations (GET → PATCH or POST, but use delete → recreate when `gitCommitish` or `codeCompilationConfig` changes on an existing resource)
 2. POST compilationResults + PATCH releaseConfig (if `DO_COMPILE=true`)
-3. Upsert workflow configurations
+3. Upsert workflow configurations (GET → PATCH or POST, but use delete → recreate when `invocationConfig` changes on an existing resource)
 
 Release configs must exist before workflow configs reference them.
 
@@ -32,6 +32,7 @@ Release configs must exist before workflow configs reference them.
 - **workflow_settings.yaml driven**: `project_id`/`location` from `defaultProject`/`defaultLocation`. Explicit inputs override.
 - **Auth**: ADC via `google-auth` + `AuthorizedSession`. Assumes `GOOGLE_APPLICATION_CREDENTIALS` is set by `google-github-actions/auth`.
 - **Sync-delete**: When `sync_delete` is true, configs not in JSON are deleted from Google Cloud.
+- **Immutable-update handling**: `apply.py` compares the current API resource before updating. For release configs, changes to `gitCommitish` or `codeCompilationConfig` use delete + recreate; for workflow configs, changes to `invocationConfig` use delete + recreate. This keeps the JSON config authoritative without relying on a later PATCH error from the API server.
 
 ## Linting & testing
 
