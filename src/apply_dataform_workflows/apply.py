@@ -5,7 +5,7 @@ import os
 import sys
 from dataclasses import dataclass
 
-from apply_dataform_workflows.client import ApiError, DataformApiClient, UpsertResult
+from apply_dataform_workflows.client import ApiError, DataformApiClient
 from apply_dataform_workflows.config import (
     ConfigLoader,
     DeployConfig,
@@ -136,7 +136,7 @@ def deploy_release_configs(
                         "disabled",
                     ),
                 )
-                result = client.upsert(
+                client.upsert(
                     "releaseConfig",
                     rc.id,
                     "/releaseConfigs",
@@ -353,7 +353,7 @@ def deploy_workflow_configs(
                         "disabled",
                     ),
                 )
-                result = client.upsert(
+                client.upsert(
                     "workflowConfig",
                     wc.id,
                     "/workflowConfigs",
