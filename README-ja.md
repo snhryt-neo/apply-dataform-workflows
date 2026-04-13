@@ -120,7 +120,7 @@ Dataform に連携される情報を常に最新にしておくために、`comp
 | `workflow_settings_file` | `workflow_settings.yaml` | Dataform の設定ファイルパス |
 | `project_id` | `workflow_settings.yaml` の `defaultProject` | Google Cloud プロジェクト ID |
 | `location` | `workflow_settings.yaml` の `defaultLocation` | Google Cloud リージョン |
-| `allow_empty_config` | `false` | `release_configs` を空にすることを許可する。リポジトリ廃止時に全設定を削除する場合に使用。`sync_delete: true` と組み合わせて使う |
+| `allow_empty_config` | `false` | リリース構成・ワークフロー構成の全削除を行う際にだけ指定するフラグ。`true` かつ JSON の `release_configs` と `workflow_configs` が両方空の場合にのみ全削除が実行される。`sync_delete: true` と組み合わせて使う |
 > [!NOTE]
 > `workflow_settings.yaml` または `location` 入力で `US` / `EU` のようなマルチリージョンを指定した場合、Dataform Cloud は単一リージョンのみ対応のため自動で正規化されます。`US` は `us-central1`、`EU` は `europe-west1` に変換されます。変換が発生した場合は GitHub Actions の warning annotation を出力します。
 
