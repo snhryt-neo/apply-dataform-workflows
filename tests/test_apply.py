@@ -1355,23 +1355,6 @@ class TestMain:
         captured = capsys.readouterr()
         assert "Multi-region location" not in captured.out
 
-    def test_empty_release_configs_without_flag_exits(self, monkeypatch, tmp_path):
-        from apply_dataform_workflows.apply import main
-
-        config_file = tmp_path / "config.json"
-        config_file.write_text('{"repository": "repo", "release_configs": []}')
-        env = self._env(
-            {
-                "CONFIG_FILE": str(config_file),
-                "ALLOW_EMPTY_CONFIG": "false",
-            }
-        )
-        for key, value in env.items():
-            monkeypatch.setenv(key, value)
-
-        with pytest.raises(SystemExit):
-            main()
-
     def test_empty_release_configs_without_flag_prints_error(
         self, monkeypatch, tmp_path, capsys
     ):
