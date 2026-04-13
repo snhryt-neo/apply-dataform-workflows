@@ -146,7 +146,7 @@ class TestDeployReleaseConfigs:
             }
         )
 
-        deploy_release_configs(mock_client, config, False, github_output)
+        deploy_release_configs(mock_client, config, github_output)
 
         mock_client.patch.assert_called_once_with(
             "/releaseConfigs/production",
@@ -172,7 +172,7 @@ class TestDeployReleaseConfigs:
             ApiError(404, "Not found"),
         ]
 
-        deploy_release_configs(mock_client, config, False, github_output)
+        deploy_release_configs(mock_client, config, github_output)
 
         assert mock_client.post.call_count == 2
         first_body = mock_client.post.call_args_list[0].args[1]
@@ -217,7 +217,7 @@ class TestDeployReleaseConfigs:
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
         mock_client.get.side_effect = ApiError(404, "Not found")
 
-        deploy_release_configs(mock_client, config, False, output)
+        deploy_release_configs(mock_client, config, output)
 
         content = output_file.read_text()
         assert "release_configs_created=production\n" in content
@@ -244,7 +244,7 @@ class TestDeployReleaseConfigs:
             }
         )
 
-        deploy_release_configs(mock_client, config, False, output)
+        deploy_release_configs(mock_client, config, output)
 
         content = output_file.read_text()
         assert "release_configs_created=\n" in content
@@ -257,7 +257,7 @@ class TestDeployReleaseConfigs:
         mock_client.dry_run = True
         mock_client.upsert.return_value = UpsertResult.DRY_RUN
 
-        deploy_release_configs(mock_client, config, False, github_output)
+        deploy_release_configs(mock_client, config, github_output)
 
         assert github_output.results[0].status == "dry_run"
 
@@ -269,7 +269,7 @@ class TestDeployReleaseConfigs:
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
         mock_client.get.side_effect = ApiError(500, "Server error")
 
-        deploy_release_configs(mock_client, config, False, github_output)
+        deploy_release_configs(mock_client, config, github_output)
 
         assert github_output.results[0].status == "failed"
 
@@ -288,7 +288,7 @@ class TestDeployReleaseConfigs:
             }
         )
 
-        deploy_release_configs(mock_client, config, False, github_output)
+        deploy_release_configs(mock_client, config, github_output)
 
         expected_body = {
             "gitCommitish": "main",
@@ -336,7 +336,7 @@ class TestDeployReleaseConfigs:
             ),
         ]
 
-        deploy_release_configs(mock_client, config, False, github_output)
+        deploy_release_configs(mock_client, config, github_output)
 
         expected_body = {
             "gitCommitish": "develop",
@@ -375,7 +375,7 @@ class TestDeployReleaseConfigs:
         )
         mock_client.post.side_effect = ApiError(500, "Recreate failed")
 
-        deploy_release_configs(mock_client, config, False, github_output)
+        deploy_release_configs(mock_client, config, github_output)
 
         assert mock_client.delete.called
         assert mock_client.post.called
@@ -394,93 +394,10 @@ class TestDeployReleaseConfigs:
             }
         )
 
-        deploy_release_configs(mock_client, config, False, github_output)
+        deploy_release_configs(mock_client, config, github_output)
 
         body = mock_client.patch.call_args.args[1]
         assert "id" not in body
-
-    def test_sync_delete_removes_orphans(
-        self, mock_client, github_output, fixtures_dir
-    ):
-        from apply_dataform_workflows.apply import deploy_release_configs
-
-        config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.get.side_effect = [
-            _json_response(
-                {
-                    "gitCommitish": "main",
-                    "cronSchedule": "0 0 * * *",
-                    "timeZone": "Asia/Tokyo",
-                    "disabled": False,
-                }
-            ),
-            _json_response(
-                {
-                    "releaseConfigs": [
-                        {"name": f"{mock_client.parent}/releaseConfigs/production"},
-                        {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
-                    ]
-                }
-            ),
-        ]
-
-        deploy_release_configs(mock_client, config, True, github_output)
-
-        mock_client.delete.assert_called_once_with("/releaseConfigs/old-release")
-        assert any(result.status == "deleted" for result in github_output.results)
-
-    def test_sync_delete_preserves_listed_configs(
-        self, mock_client, github_output, fixtures_dir
-    ):
-        from apply_dataform_workflows.apply import deploy_release_configs
-
-        config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.get.side_effect = [
-            _json_response(
-                {
-                    "gitCommitish": "main",
-                    "cronSchedule": "0 0 * * *",
-                    "timeZone": "Asia/Tokyo",
-                    "disabled": False,
-                }
-            ),
-            _json_response(
-                {
-                    "releaseConfigs": [
-                        {"name": f"{mock_client.parent}/releaseConfigs/production"},
-                    ]
-                }
-            ),
-        ]
-
-        deploy_release_configs(mock_client, config, True, github_output)
-
-        mock_client.delete.assert_not_called()
-
-    def test_sync_delete_warns_on_list_failure(
-        self, mock_client, github_output, fixtures_dir, capsys
-    ):
-        from apply_dataform_workflows.apply import deploy_release_configs
-
-        config = ConfigLoader.load(fixtures_dir / "config_simple.json")
-        mock_client.get.side_effect = [
-            _json_response(
-                {
-                    "gitCommitish": "main",
-                    "cronSchedule": "0 0 * * *",
-                    "timeZone": "Asia/Tokyo",
-                    "disabled": False,
-                }
-            ),
-            ApiError(500, "List failed"),
-        ]
-
-        deploy_release_configs(mock_client, config, True, github_output)
-
-        captured = capsys.readouterr()
-        assert "::warning::" in captured.out
-        assert "List failed" in captured.out
-        mock_client.delete.assert_not_called()
 
     def test_release_config_disabled_true_sets_disabled_and_update_mask(
         self, mock_client, github_output, tmp_path
@@ -510,7 +427,7 @@ class TestDeployReleaseConfigs:
             }
         )
 
-        deploy_release_configs(mock_client, config, False, github_output)
+        deploy_release_configs(mock_client, config, github_output)
 
         assert mock_client.patch.call_args.args[1] == {
             "gitCommitish": "main",
@@ -547,7 +464,7 @@ class TestDeployReleaseConfigs:
             }
         )
 
-        deploy_release_configs(mock_client, config, False, github_output)
+        deploy_release_configs(mock_client, config, github_output)
 
         assert mock_client.patch.call_args.args[1] == {
             "gitCommitish": "main",
@@ -861,6 +778,7 @@ class TestDeployWorkflowConfigs:
                     ]
                 }
             ),
+            _json_response({"releaseConfigs": []}),
         ]
 
         deploy_workflow_configs(mock_client, config, True, github_output)
@@ -891,6 +809,7 @@ class TestDeployWorkflowConfigs:
                     ]
                 }
             ),
+            _json_response({"releaseConfigs": []}),
         ]
 
         deploy_workflow_configs(mock_client, config, True, github_output)
@@ -1001,6 +920,7 @@ class TestDeployWorkflowConfigs:
                 }
             ),
             ApiError(500, "List failed"),
+            _json_response({"releaseConfigs": []}),
         ]
 
         deploy_workflow_configs(mock_client, config, True, github_output)
@@ -1009,6 +929,112 @@ class TestDeployWorkflowConfigs:
         assert "::warning::" in captured.out
         assert "List failed" in captured.out
         mock_client.delete.assert_not_called()
+
+    def test_sync_delete_removes_orphaned_release_configs(
+        self, mock_client, github_output, fixtures_dir
+    ):
+        from apply_dataform_workflows.apply import deploy_workflow_configs
+
+        config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        mock_client.get.side_effect = [
+            _json_response({
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "cronSchedule": "0 3 * * *",
+                "timeZone": "Asia/Tokyo",
+                "invocationConfig": {},
+                "disabled": False,
+            }),
+            _json_response({
+                "workflowConfigs": [
+                    {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
+                ]
+            }),
+            _json_response({
+                "releaseConfigs": [
+                    {"name": f"{mock_client.parent}/releaseConfigs/production"},
+                    {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
+                ]
+            }),
+        ]
+
+        deploy_workflow_configs(mock_client, config, True, github_output)
+
+        mock_client.delete.assert_called_once_with("/releaseConfigs/old-release")
+        assert any(
+            r.status == "deleted" and "releaseConfig" in r.resource
+            for r in github_output.results
+        )
+
+    def test_sync_delete_deletes_workflow_configs_before_release_configs(
+        self, mock_client, github_output, fixtures_dir
+    ):
+        """Workflow configs must be deleted before release configs."""
+        from apply_dataform_workflows.apply import deploy_workflow_configs
+
+        config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        mock_client.get.side_effect = [
+            _json_response({
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "cronSchedule": "0 3 * * *",
+                "timeZone": "Asia/Tokyo",
+                "invocationConfig": {},
+                "disabled": False,
+            }),
+            _json_response({
+                "workflowConfigs": [
+                    {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
+                    {"name": f"{mock_client.parent}/workflowConfigs/old-workflow"},
+                ]
+            }),
+            _json_response({
+                "releaseConfigs": [
+                    {"name": f"{mock_client.parent}/releaseConfigs/production"},
+                    {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
+                ]
+            }),
+        ]
+
+        deploy_workflow_configs(mock_client, config, True, github_output)
+
+        delete_calls = [str(c) for c in mock_client.delete.call_args_list]
+        wc_idx = next(i for i, c in enumerate(delete_calls) if "workflowConfigs" in c)
+        rc_idx = next(i for i, c in enumerate(delete_calls) if "releaseConfigs" in c)
+        assert wc_idx < rc_idx, "workflowConfig must be deleted before releaseConfig"
+
+    def test_sync_delete_sets_release_configs_deleted_output(
+        self, mock_client, fixtures_dir, tmp_path
+    ):
+        from apply_dataform_workflows.apply import deploy_workflow_configs
+
+        output_file = tmp_path / "github_output"
+        output_file.write_text("")
+        output = GitHubOutput(
+            output_path=str(output_file),
+            summary_path=str(tmp_path / "summary"),
+        )
+        config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        mock_client.get.side_effect = [
+            _json_response({
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "cronSchedule": "0 3 * * *",
+                "timeZone": "Asia/Tokyo",
+                "invocationConfig": {},
+                "disabled": False,
+            }),
+            _json_response({"workflowConfigs": [
+                {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
+            ]}),
+            _json_response({"releaseConfigs": [
+                {"name": f"{mock_client.parent}/releaseConfigs/production"},
+                {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
+            ]}),
+        ]
+
+        deploy_workflow_configs(mock_client, config, True, output)
+
+        content = output_file.read_text()
+        assert "release_configs_deleted=old-release\n" in content
+        assert "release_configs_delete_failed=\n" in content
 
     def test_workflow_config_disabled_true_sets_disabled_and_update_mask(
         self, mock_client, github_output, tmp_path

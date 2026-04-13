@@ -116,7 +116,6 @@ def _workflow_config_requires_recreate(existing: dict, desired: dict) -> bool:
 def deploy_release_configs(
     client: DataformApiClient,
     config: DeployConfig,
-    sync_delete: bool,
     output: GitHubOutput,
 ) -> None:
     print("")
@@ -213,57 +212,9 @@ def deploy_release_configs(
                 StepResult("1/3", f"releaseConfig: {rc.id}", "failed", "Failed")
             )
 
-    # Sync-delete orphaned release configs
-    deleted = []
-    delete_failed = []
-
-    if sync_delete and not client.dry_run:
-        desired_ids = {rc.id for rc in config.release_configs}
-        try:
-            response = client.get("/releaseConfigs")
-            existing = response.json().get("releaseConfigs", [])
-            for entry in existing:
-                existing_id = entry["name"].split("/")[-1]
-                if existing_id not in desired_ids:
-                    try:
-                        print(f"  Deleting releaseConfig: {existing_id}")
-                        client.delete(f"/releaseConfigs/{existing_id}")
-                        print(f"  Deleted releaseConfig: {existing_id}")
-                        deleted.append(existing_id)
-                        output.add_result(
-                            StepResult(
-                                "1/3",
-                                f"releaseConfig: {existing_id}",
-                                "deleted",
-                                "Deleted",
-                            )
-                        )
-                    except ApiError as e:
-                        print(
-                            f"::error::Failed to delete releaseConfig"
-                            f" '{existing_id}': {e.message}"
-                        )
-                        delete_failed.append(existing_id)
-                        output.add_result(
-                            StepResult(
-                                "1/3",
-                                f"releaseConfig: {existing_id}",
-                                "failed",
-                                "Delete failed",
-                            )
-                        )
-        except ApiError as e:
-            print(
-                f"::warning::Failed to list release configs for sync-delete: {e.message}"
-            )
-    elif sync_delete and client.dry_run:
-        print("  [dry-run] Would check for orphaned release configs to delete")
-
     output.set_output("release_configs_created", ",".join(created))
     output.set_output("release_configs_updated", ",".join(updated))
     output.set_output("release_configs_failed", ",".join(failed))
-    output.set_output("release_configs_deleted", ",".join(deleted))
-    output.set_output("release_configs_delete_failed", ",".join(delete_failed))
     print("::endgroup::")
 
 
@@ -336,6 +287,8 @@ def deploy_workflow_configs(
         output.set_output("workflow_configs_failed", "")
         output.set_output("workflow_configs_deleted", "")
         output.set_output("workflow_configs_delete_failed", "")
+        output.set_output("release_configs_deleted", "")
+        output.set_output("release_configs_delete_failed", "")
         output.add_result(
             StepResult("3/3", "Workflow configurations", "skipped", "Skipped")
         )
@@ -475,11 +428,59 @@ def deploy_workflow_configs(
     elif sync_delete and client.dry_run:
         print("  [dry-run] Would check for orphaned workflow configs to delete")
 
+    # Sync-delete orphaned release configs (after workflow configs to avoid reference errors)
+    rc_deleted = []
+    rc_delete_failed = []
+
+    if sync_delete and not client.dry_run:
+        desired_rc_ids = {rc.id for rc in config.release_configs}
+        try:
+            response = client.get("/releaseConfigs")
+            existing_rcs = response.json().get("releaseConfigs", [])
+            for entry in existing_rcs:
+                existing_id = entry["name"].split("/")[-1]
+                if existing_id not in desired_rc_ids:
+                    try:
+                        print(f"  Deleting releaseConfig: {existing_id}")
+                        client.delete(f"/releaseConfigs/{existing_id}")
+                        print(f"  Deleted releaseConfig: {existing_id}")
+                        rc_deleted.append(existing_id)
+                        output.add_result(
+                            StepResult(
+                                "3/3",
+                                f"releaseConfig: {existing_id}",
+                                "deleted",
+                                "Deleted",
+                            )
+                        )
+                    except ApiError as e:
+                        print(
+                            f"::error::Failed to delete releaseConfig"
+                            f" '{existing_id}': {e.message}"
+                        )
+                        rc_delete_failed.append(existing_id)
+                        output.add_result(
+                            StepResult(
+                                "3/3",
+                                f"releaseConfig: {existing_id}",
+                                "failed",
+                                "Delete failed",
+                            )
+                        )
+        except ApiError as e:
+            print(
+                f"::warning::Failed to list release configs for sync-delete: {e.message}"
+            )
+    elif sync_delete and client.dry_run:
+        print("  [dry-run] Would check for orphaned release configs to delete")
+
     output.set_output("workflow_configs_created", ",".join(created))
     output.set_output("workflow_configs_updated", ",".join(updated))
     output.set_output("workflow_configs_failed", ",".join(failed))
     output.set_output("workflow_configs_deleted", ",".join(deleted))
     output.set_output("workflow_configs_delete_failed", ",".join(delete_failed))
+    output.set_output("release_configs_deleted", ",".join(rc_deleted))
+    output.set_output("release_configs_delete_failed", ",".join(rc_delete_failed))
     print("::endgroup::")
 
 
@@ -560,7 +561,7 @@ def main() -> None:
     print("──────────────────────────────────────────────────────")
 
     # Execute 3 steps
-    deploy_release_configs(client, config, sync_delete, output)
+    deploy_release_configs(client, config, output)
     compile_release_configs(client, config, do_compile, output)
     deploy_workflow_configs(client, config, sync_delete, output)
 
