@@ -1354,3 +1354,70 @@ class TestMain:
         )
         captured = capsys.readouterr()
         assert "Multi-region location" not in captured.out
+
+    def test_empty_release_configs_without_flag_exits(self, monkeypatch, tmp_path):
+        from apply_dataform_workflows.apply import main
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text('{"repository": "repo", "release_configs": []}')
+        env = self._env(
+            {
+                "CONFIG_FILE": str(config_file),
+                "ALLOW_EMPTY_CONFIG": "false",
+            }
+        )
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+
+        with pytest.raises(SystemExit):
+            main()
+
+    def test_empty_release_configs_without_flag_prints_error(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        from apply_dataform_workflows.apply import main
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text('{"repository": "repo", "release_configs": []}')
+        env = self._env(
+            {
+                "CONFIG_FILE": str(config_file),
+                "ALLOW_EMPTY_CONFIG": "false",
+            }
+        )
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+
+        with pytest.raises(SystemExit):
+            main()
+
+        captured = capsys.readouterr()
+        assert "allow_empty_config" in captured.out
+
+    @mock_patch("apply_dataform_workflows.apply.DataformApiClient")
+    def test_empty_release_configs_with_flag_proceeds(
+        self, mock_client_cls, monkeypatch, tmp_path
+    ):
+        from apply_dataform_workflows.apply import main
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text('{"repository": "repo", "release_configs": []}')
+        env = self._env(
+            {
+                "CONFIG_FILE": str(config_file),
+                "ALLOW_EMPTY_CONFIG": "true",
+                "DRY_RUN": "false",
+                "SYNC_DELETE": "false",
+            }
+        )
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+
+        mock_client = MagicMock()
+        mock_client.parent = (
+            "projects/test-project/locations/asia-northeast1/repositories/repo"
+        )
+        mock_client.dry_run = False
+        mock_client_cls.return_value = mock_client
+
+        main()  # must not raise

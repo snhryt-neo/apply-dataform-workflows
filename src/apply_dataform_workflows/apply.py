@@ -500,6 +500,7 @@ def main() -> None:
     do_compile = os.environ.get("DO_COMPILE", "false").lower() == "true"
     sync_delete = os.environ.get("SYNC_DELETE", "true").lower() == "true"
     dry_run = os.environ.get("DRY_RUN", "false").lower() == "true"
+    allow_empty_config = os.environ.get("ALLOW_EMPTY_CONFIG", "false").lower() == "true"
     # Resolve project_id, location, and default_dataset
     try:
         project_id, location, default_dataset = ConfigLoader.resolve_workflow_settings(
@@ -518,6 +519,13 @@ def main() -> None:
         )
     except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
         print(f"::error::Config error: {e}")
+        sys.exit(1)
+
+    if not config.release_configs and not allow_empty_config:
+        print(
+            "::error::release_configs is empty."
+            " Set allow_empty_config: true if you intend to delete all configurations."
+        )
         sys.exit(1)
 
     repository = config.repository
