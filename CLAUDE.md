@@ -25,6 +25,8 @@ tests/              → pytest tests (test_client.py, test_config.py, test_apply
 
 Release configs must exist before workflow configs reference them.
 
+**Ordering invariant**: creation/upsert is always release configs → workflow configs. Deletion (sync-delete) is the reverse: workflow configs → release configs. This prevents API errors from deleting a release config that a workflow config still references.
+
 ## Key design decisions
 
 - **Action input → env var naming**: `compile` → `DO_COMPILE`, `workflow_settings_file` → `WORKFLOW_SETTINGS`. Match these when testing locally.

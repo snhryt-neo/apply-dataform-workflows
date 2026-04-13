@@ -632,12 +632,6 @@ class TestConfigLoaderValidation:
         with pytest.raises(ValueError, match="missing required field 'repository'"):
             ConfigLoader.load(bad_file)
 
-    def test_empty_release_configs_raises(self, tmp_path):
-        bad_file = tmp_path / "bad.json"
-        bad_file.write_text('{"repository": "repo", "release_configs": []}')
-        with pytest.raises(ValueError, match="release_configs must not be empty"):
-            ConfigLoader.load(bad_file)
-
     def test_duplicate_release_config_ids_raises(self, fixtures_dir):
         with pytest.raises(
             ValueError, match="Duplicate release_configs id: 'production'"

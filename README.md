@@ -120,6 +120,7 @@ To keep the information linked to Dataform up to date, `compile: true` is recomm
 | `workflow_settings_file` | `workflow_settings.yaml` | Path to Dataform `workflow_settings.yaml` |
 | `project_id` | from `workflow_settings.yaml` | Google Cloud project ID |
 | `location` | from `workflow_settings.yaml` | Google Cloud region |
+| `allow_empty_config` | `false` | Flag for full deletion of all release and workflow configurations. Full deletion runs only when this is `true` and both `release_configs` and `workflow_configs` in the JSON are empty. Combine with `sync_delete: true`. |
 > [!NOTE]
 > Multi-region locations from `workflow_settings.yaml` or the `location` input are normalized automatically because Dataform Cloud only supports single-region locations. `US` maps to `us-central1` and `EU` maps to `europe-west1`. When conversion occurs, the action emits a GitHub Actions warning annotation.
 
