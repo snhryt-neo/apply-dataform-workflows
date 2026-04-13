@@ -105,9 +105,6 @@ class ConfigLoader:
             rc_body.setdefault("disabled", False)
             release_configs.append(ReleaseConfig(id=rc["id"], body=rc_body))
 
-        if not release_configs:
-            raise ValueError("release_configs must not be empty")
-
         workflow_configs = []
         for i, wc in enumerate(data.get("workflowConfigs", [])):
             if "id" not in wc:
