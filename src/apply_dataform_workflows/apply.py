@@ -528,6 +528,13 @@ def main() -> None:
         )
         sys.exit(1)
 
+    if not config.release_configs and config.workflow_configs:
+        print(
+            "::error::release_configs is empty but workflow_configs is not."
+            " Both must be empty when allow_empty_config: true."
+        )
+        sys.exit(1)
+
     repository = config.repository
 
     location, original_location = normalize_location(location)

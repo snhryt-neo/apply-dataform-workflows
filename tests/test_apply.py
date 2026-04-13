@@ -1404,3 +1404,29 @@ class TestMain:
         mock_client_cls.return_value = mock_client
 
         main()  # must not raise
+
+    def test_empty_release_configs_with_nonempty_workflow_configs_exits(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        from apply_dataform_workflows.apply import main
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            '{"repository": "repo", "release_configs": [], "workflow_configs": ['
+            '{"id": "daily", "release_config": "prod", "targets": {"is_all": true}}'
+            "]}"
+        )
+        env = self._env(
+            {
+                "CONFIG_FILE": str(config_file),
+                "ALLOW_EMPTY_CONFIG": "true",
+            }
+        )
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+
+        with pytest.raises(SystemExit):
+            main()
+
+        captured = capsys.readouterr()
+        assert "workflow_configs" in captured.out
