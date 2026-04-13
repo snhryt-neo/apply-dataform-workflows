@@ -2,7 +2,7 @@
 
 **Language: English | [日本語](README-ja.md)**
 
-**A GitHub Composite Action that applies Dataform release configurations and workflow configurations from a single JSON file (SSoT).**
+**A GitHub Composite Action that applies Dataform release configurations and workflow configurations from a single JSON file.**
 
 ## Quick start
 
@@ -68,7 +68,7 @@ To solve these issues, this action provides Dataform maintainers with a lightwei
 
 *Let's bring back the [environments.json](https://youtu.be/KdxKP_eo8bc?si=XZ1x3z_1OKGBoNYX) days!*
 
-👉 For more details, see my [Zenn article](https://zenn.dev/snhryt/articles/apply-dataform-workflows).
+👉 For more details, see my [Zenn article](https://zenn.dev/snhryt/articles/apply-dataform-workflows) *(Japanese only — sorry, English speakers!)*
 
 ## How it works
 
@@ -124,7 +124,7 @@ To keep the information linked to Dataform up to date, `compile: true` is recomm
 | `dry_run` | `false` | Preview changes without applying |
 | `compile` | `false` | Compile each release config and update releaseCompilationResult |
 | `sync_delete` | `true` | Delete release/workflow configs from Google Cloud that are not in the config file |
-| `config_file` | `release_workflow_config.json` | Path to JSON SSoT file |
+| `config_file` | `release_workflow_config.json` | Path to JSON file for this action |
 | `workflow_settings_file` | `workflow_settings.yaml` | Path to Dataform `workflow_settings.yaml` |
 | `project_id` | from `workflow_settings.yaml` | Google Cloud project ID |
 | `location` | from `workflow_settings.yaml` | Google Cloud region |
