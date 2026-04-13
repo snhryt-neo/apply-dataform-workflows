@@ -937,24 +937,30 @@ class TestDeployWorkflowConfigs:
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
         mock_client.get.side_effect = [
-            _json_response({
-                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
-                "cronSchedule": "0 3 * * *",
-                "timeZone": "Asia/Tokyo",
-                "invocationConfig": {},
-                "disabled": False,
-            }),
-            _json_response({
-                "workflowConfigs": [
-                    {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
-                ]
-            }),
-            _json_response({
-                "releaseConfigs": [
-                    {"name": f"{mock_client.parent}/releaseConfigs/production"},
-                    {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
-                ]
-            }),
+            _json_response(
+                {
+                    "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                    "cronSchedule": "0 3 * * *",
+                    "timeZone": "Asia/Tokyo",
+                    "invocationConfig": {},
+                    "disabled": False,
+                }
+            ),
+            _json_response(
+                {
+                    "workflowConfigs": [
+                        {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
+                    ]
+                }
+            ),
+            _json_response(
+                {
+                    "releaseConfigs": [
+                        {"name": f"{mock_client.parent}/releaseConfigs/production"},
+                        {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
+                    ]
+                }
+            ),
         ]
 
         deploy_workflow_configs(mock_client, config, True, github_output)
@@ -973,25 +979,31 @@ class TestDeployWorkflowConfigs:
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
         mock_client.get.side_effect = [
-            _json_response({
-                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
-                "cronSchedule": "0 3 * * *",
-                "timeZone": "Asia/Tokyo",
-                "invocationConfig": {},
-                "disabled": False,
-            }),
-            _json_response({
-                "workflowConfigs": [
-                    {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
-                    {"name": f"{mock_client.parent}/workflowConfigs/old-workflow"},
-                ]
-            }),
-            _json_response({
-                "releaseConfigs": [
-                    {"name": f"{mock_client.parent}/releaseConfigs/production"},
-                    {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
-                ]
-            }),
+            _json_response(
+                {
+                    "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                    "cronSchedule": "0 3 * * *",
+                    "timeZone": "Asia/Tokyo",
+                    "invocationConfig": {},
+                    "disabled": False,
+                }
+            ),
+            _json_response(
+                {
+                    "workflowConfigs": [
+                        {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
+                        {"name": f"{mock_client.parent}/workflowConfigs/old-workflow"},
+                    ]
+                }
+            ),
+            _json_response(
+                {
+                    "releaseConfigs": [
+                        {"name": f"{mock_client.parent}/releaseConfigs/production"},
+                        {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
+                    ]
+                }
+            ),
         ]
 
         deploy_workflow_configs(mock_client, config, True, github_output)
@@ -1014,20 +1026,30 @@ class TestDeployWorkflowConfigs:
         )
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
         mock_client.get.side_effect = [
-            _json_response({
-                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
-                "cronSchedule": "0 3 * * *",
-                "timeZone": "Asia/Tokyo",
-                "invocationConfig": {},
-                "disabled": False,
-            }),
-            _json_response({"workflowConfigs": [
-                {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
-            ]}),
-            _json_response({"releaseConfigs": [
-                {"name": f"{mock_client.parent}/releaseConfigs/production"},
-                {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
-            ]}),
+            _json_response(
+                {
+                    "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                    "cronSchedule": "0 3 * * *",
+                    "timeZone": "Asia/Tokyo",
+                    "invocationConfig": {},
+                    "disabled": False,
+                }
+            ),
+            _json_response(
+                {
+                    "workflowConfigs": [
+                        {"name": f"{mock_client.parent}/workflowConfigs/daily-run"},
+                    ]
+                }
+            ),
+            _json_response(
+                {
+                    "releaseConfigs": [
+                        {"name": f"{mock_client.parent}/releaseConfigs/production"},
+                        {"name": f"{mock_client.parent}/releaseConfigs/old-release"},
+                    ]
+                }
+            ),
         ]
 
         deploy_workflow_configs(mock_client, config, True, output)
