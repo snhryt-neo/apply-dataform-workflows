@@ -238,7 +238,7 @@ CONFIG_FILE=examples/release_workflow_config_simple.json \
 WORKFLOW_SETTINGS=examples/workflow_settings.yaml \
 DO_COMPILE=false \
 DRY_RUN=true \
-uv run python -m apply_dataform_workflows.deploy
+uv run python -m apply_dataform_workflows.apply
 ```
 
 To apply against a real Google Cloud environment, put actual values in `tests/release_workflow_config.json` and `tests/workflow_settings.yaml` (both are git ignored):
@@ -247,7 +247,7 @@ To apply against a real Google Cloud environment, put actual values in `tests/re
 CONFIG_FILE=tests/release_workflow_config.json \
 WORKFLOW_SETTINGS=tests/workflow_settings.yaml \
 DO_COMPILE=false \
-uv run python -m apply_dataform_workflows.deploy
+uv run python -m apply_dataform_workflows.apply
 ```
 
 > [!NOTE]

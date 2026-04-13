@@ -66,7 +66,7 @@
 
 これらの課題を解決すべく、このアクションでは Dataform のメンテナーが手軽に、冪等に、SQLX コードに近い場所で、 Dataform のワークフローをコードベースで管理する体験を提供します。
 
-*あの頃の [enivironments.json](https://youtu.be/KdxKP_eo8bc?si=XZ1x3z_1OKGBoNYX) を取り戻そう！*
+*あの頃の [environments.json](https://youtu.be/KdxKP_eo8bc?si=XZ1x3z_1OKGBoNYX) を取り戻そう！*
 
 👉 より詳細については、私が記載した [Zenn 記事](https://zenn.dev/snhryt/articles/apply-dataform-workflows) をご参照ください。
 
@@ -239,7 +239,7 @@ CONFIG_FILE=examples/release_workflow_config_simple.json \
 WORKFLOW_SETTINGS=examples/workflow_settings.yaml \
 DO_COMPILE=false \
 DRY_RUN=true \
-uv run python -m apply_dataform_workflows.deploy
+uv run python -m apply_dataform_workflows.apply
 ```
 
 
@@ -252,7 +252,7 @@ Google Cloud 環境への apply （実際の API 呼び出しあり）:
 CONFIG_FILE=tests/release_workflow_config.json \
 WORKFLOW_SETTINGS=tests/workflow_settings.yaml \
 DO_COMPILE=false \
-uv run python -m apply_dataform_workflows.deploy
+uv run python -m apply_dataform_workflows.apply
 ```
 
 > [!NOTE]
