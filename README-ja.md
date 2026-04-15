@@ -4,6 +4,8 @@
 
 **JSON ファイルで定義した Dataform のワークフロー設定（リリース構成・ワークフロー構成）を、クラウド版の Dataform に冪等に反映する GitHub Action です。**
 
+![overview.png](overview.png)
+
 ## クイックスタート
 
 ### 1. JSON ファイルを作成

@@ -4,6 +4,8 @@
 
 **A GitHub Composite Action that applies Dataform release configurations and workflow configurations from a single JSON file.**
 
+![overview.png](overview.png)
+
 ## Quick start
 
 ### 1. Create your config file
