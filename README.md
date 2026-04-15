@@ -2,17 +2,9 @@
 
 **Language: English | [日本語](README-ja.md)**
 
-**A GitHub Composite Action that applies Dataform release configurations and workflow configurations from a single JSON file (SSoT).**
+**A GitHub Composite Action that applies Dataform release configurations and workflow configurations from a single JSON file.**
 
-## Motivation
-
-Release configurations (including compilation) and workflow configurations for managed Dataform cannot be managed through the [Dataform CLI](https://github.com/dataform-co/dataform). The mainstream approaches are either configuring them manually through the Google Cloud Console, or managing them with [Terraform](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/dataform_repository_workflow_config).
-
-The Console-driven approach lacks change history and review processes, and manual configuration is tedious. On the other hand, while Terraform provides consistent code-based management, it can be overkill when you only need to manage Dataform. Furthermore, when Dataform maintainers (analytics engineers, etc.) and Google Cloud infrastructure owners (SRE, etc.) are separate teams, even a simple change like shifting a workflow schedule by one hour can require going through the infrastructure team's heavyweight Terraform review and deploy process.
-
-To solve these issues, this action provides Dataform maintainers with a lightweight, idempotent, code-based workflow management experience — right next to their SQLX code.
-
-*Let's bring back the [environments.json](https://youtu.be/KdxKP_eo8bc?si=XZ1x3z_1OKGBoNYX) days!*
+![overview.png](overview.png)
 
 ## Quick start
 
@@ -46,25 +38,45 @@ To solve these issues, this action provides Dataform maintainers with a lightwei
 }
 ```
 
-👉 See [`examples/release_workflow_config_advanced.json`](examples/release_workflow_config_advanced.json) for a multi-environment setup with `compile_override` overrides and tag-based workflows.
+👉 See [here](examples/release_workflow_config_advanced.json) for more advanced examples including per-table execution, execution option toggles, and transfer suspension.
 
 ### 2. Set up your workflow
 
 > [!IMPORTANT]
 > This action does not handle Google Cloud authentication. Use [`google-github-actions/auth`](https://github.com/google-github-actions/auth) beforehand.
+>
+> Also, create and configure your Workload Identity Provider and the Google Cloud service account to impersonate. In the standard case, that service account should have IAM permissions equivalent to Dataform Admin (`roles/dataform.admin`) (if [strict act-as mode](https://docs.cloud.google.com/dataform/docs/strict-act-as-mode) is enabled, `Service Account User` (`roles/iam.serviceAccountUser`) on the execution service account is also required).
 
 ```yaml
 - name: Apply Dataform release / workflow configurations
   uses: snhryt-neo/apply-dataform-workflows@v1
 ```
 
-👉 See [`examples/.github/workflows/apply-dataform-workflows.yml`](examples/.github/workflows/apply-dataform-workflows.yml) for a full workflow example.
+👉 See [here](examples/.github/workflows/apply-dataform-workflows.yml) for a full workflow example.
 
 ### 3. Confirm changes are reflected in Google Cloud
 
 That's it!
 
-## Release / Workflow Configurations Update Flow
+---
+
+## Motivation
+
+Release configurations (including compilation) and workflow configurations for managed Dataform cannot be managed through the [Dataform CLI](https://github.com/dataform-co/dataform). The mainstream approaches are either configuring them manually through the Google Cloud Console, or managing them with [Terraform](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/dataform_repository_workflow_config).
+
+The Console-driven approach lacks change history and review processes, and manual configuration is tedious. On the other hand, while Terraform provides consistent code-based management, it can be overkill when you only need to manage Dataform. Furthermore, when Dataform maintainers (analytics engineers, etc.) and Google Cloud infrastructure owners (SRE, etc.) are separate teams, even a simple change like shifting a workflow schedule by one hour can require going through the infrastructure team's heavyweight Terraform review and deploy process. On top of that, any Dataform-side change that affects the Terraform definitions — such as adding tags or restructuring tables — must be manually reflected there too, leaving a constant risk of the two falling out of sync.
+
+To solve these issues, this action provides Dataform maintainers with a lightweight, idempotent, code-based workflow management experience — right next to their SQLX code.
+
+*Let's bring back the [environments.json](https://youtu.be/KdxKP_eo8bc?si=XZ1x3z_1OKGBoNYX) days!*
+
+👉 For more details, see my [Zenn article](https://zenn.dev/snhryt/articles/apply-dataform-workflows) *(Japanese only — sorry, English speakers!)*
+
+## How it works
+
+This tool is essentially a wrapper around the [Dataform REST API](https://docs.cloud.google.com/dataform/reference/rest). Under the hood, it reads the JSON config and calls the API accordingly. The overall processing flow is: create/update release configs → (if `compile` is true) compile release configs → create/update workflow configs.
+
+### Release / Workflow Configurations Update Flow
 
 ```mermaid
 flowchart LR
@@ -87,16 +99,14 @@ flowchart LR
     I -- No --> J
 ```
 
-Release configs are deployed before workflow configs, so references within the same JSON file are resolved safely.
-
-For existing release configs, a change in `gitCommitish` or `codeCompilationConfig` is handled with `DELETE -> POST`. For existing workflow configs, a change in `invocationConfig` is handled the same way. Other updates continue to use `PATCH`.
+For settings that are immutable and cannot be updated via the API (such as `git_ref` and `compile_override` for release configs, and `options` for workflow configs), the action uses `DELETE -> POST` instead of `PATCH` when changes are detected.
 
 > [!NOTE]
-> In line with the design principle of treating the JSON file as the Single Source of Truth (SSoT), `sync_delete` is enabled by default. When enabled, release configurations and workflow configurations that exist on Google Cloud but are not in the JSON file are **automatically deleted**.
+> In line with the design principle of treating the JSON file as the Single Source of Truth, `sync_delete` is enabled by default. When enabled, release configurations and workflow configurations that exist on Google Cloud but are not in the JSON file are **automatically deleted**.
 >
 > Set `sync_delete: false` to disable this behavior and only upsert. Note that in this case the JSON file and Google Cloud will no longer be in full sync.
 
-## Release Compilation
+### Release Compilation
 
 When `compile: true` is set, the action compiles each release config after the release/workflow configuration update step and then patches the release config with the latest `releaseCompilationResult`.
 
@@ -116,7 +126,7 @@ To keep the information linked to Dataform up to date, `compile: true` is recomm
 | `dry_run` | `false` | Preview changes without applying |
 | `compile` | `false` | Compile each release config and update releaseCompilationResult |
 | `sync_delete` | `true` | Delete release/workflow configs from Google Cloud that are not in the config file |
-| `config_file` | `release_workflow_config.json` | Path to JSON SSoT file |
+| `config_file` | `release_workflow_config.json` | Path to JSON file for this action |
 | `workflow_settings_file` | `workflow_settings.yaml` | Path to Dataform `workflow_settings.yaml` |
 | `project_id` | from `workflow_settings.yaml` | Google Cloud project ID |
 | `location` | from `workflow_settings.yaml` | Google Cloud region |
@@ -230,7 +240,7 @@ CONFIG_FILE=examples/release_workflow_config_simple.json \
 WORKFLOW_SETTINGS=examples/workflow_settings.yaml \
 DO_COMPILE=false \
 DRY_RUN=true \
-uv run python -m apply_dataform_workflows.deploy
+uv run python -m apply_dataform_workflows.apply
 ```
 
 To apply against a real Google Cloud environment, put actual values in `tests/release_workflow_config.json` and `tests/workflow_settings.yaml` (both are git ignored):
@@ -239,7 +249,7 @@ To apply against a real Google Cloud environment, put actual values in `tests/re
 CONFIG_FILE=tests/release_workflow_config.json \
 WORKFLOW_SETTINGS=tests/workflow_settings.yaml \
 DO_COMPILE=false \
-uv run python -m apply_dataform_workflows.deploy
+uv run python -m apply_dataform_workflows.apply
 ```
 
 > [!NOTE]

@@ -4,15 +4,7 @@
 
 **JSON ファイルで定義した Dataform のワークフロー設定（リリース構成・ワークフロー構成）を、クラウド版の Dataform に冪等に反映する GitHub Action です。**
 
-## モチベーション
-
-[クラウド版の Dataform](https://cloud.google.com/dataform?hl=ja) （= Google Cloud のマネージドサービスとしての Dataform ） の「リリース構成」と「ワークフロー構成」は [Dataform CLI](https://github.com/dataform-co/dataform) で管理ができず、マネージドコンソールの画面からポチポチ駆動開発をするか、 [Terraform](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/dataform_repository_workflow_config) で管理するのが主流です。
-
-前者に関しては、変更履歴やレビュープロセスがなかったり、そもそも手作業が手間だったりという問題があります。一方の Terraform は一貫してコードベースで管理ができて便利な反面、 Dataform だけを管理したい場合には too much になりがちです。また Dataform のメンテナー（アナリティクスエンジニア等）と Google Cloud 全体のインフラ担当（ SRE 等）が別れているために、Dataform のワークフローの実行時間を 1 時間ずらしたいだけにも関わらず、インフラチームによる重厚な Terraform のレビュー・デプロイのプロセスを経ないと、ワークフローの変更ができない、といった状況もしばしば見受けられます。
-
-これらの課題を解決すべく、このアクションでは Dataform のメンテナーが手軽に、冪等に、SQLX コードに近い場所で、 Dataform のワークフローをコードベースで管理する体験を提供します。
-
-*あの頃の [enivironments.json](https://youtu.be/KdxKP_eo8bc?si=XZ1x3z_1OKGBoNYX) を取り戻そう！*
+![overview.png](overview.png)
 
 ## クイックスタート
 
@@ -46,25 +38,45 @@
 }
 ```
 
-👉 マルチ環境構成や `compile_override` のオーバーライドなど、より発展的な例は [`examples/release_workflow_config_advanced.json`](examples/release_workflow_config_advanced.json) を参照してください。
+👉 テーブル単位での実行指定、実行オプションの切り替え、転送設定の停止など、より発展的な例は [こちら](examples/release_workflow_config_advanced.json) をご参照ください。
 
 ### 2. GitHub Actions のワークフローを設定
 
 > [!IMPORTANT]
 > このアクションには Google Cloud の認証は含まれません。事前に [`google-github-actions/auth`](https://github.com/google-github-actions/auth) で認証を済ませてください。
+>
+> また、事前に Workload Identity Provider と、それに紐づけて impersonate する Google Cloud のサービスアカウントを作成・設定しておいてください。標準的には、そのサービスアカウントに `Dataform 管理者` (`roles/dataform.admin`) 相当の IAM 権限が必要です（[厳格な act-as モード](https://docs.cloud.google.com/dataform/docs/strict-act-as-mode) が有効な場合、実行用サービスアカウントに対する `サービスアカウント ユーザー` (`roles/iam.serviceAccountUser`) 権限も必要）。
 
 ```yaml
 - name: Apply Dataform release / workflow configurations
   uses: snhryt-neo/apply-dataform-workflows@v1
 ```
 
-👉 完全なワークフローの例は [こちら](examples/.github/workflows/apply-dataform-workflows.yml) を参照してください。
+👉 完全なワークフローの例は [こちら](examples/.github/workflows/apply-dataform-workflows.yml) をご参照ください。
 
 ### 3. Google Cloud 側で変更が反映されていることを確認
 
 以上！
 
-## リリース/ワークフロー構成の更新フロー
+---
+
+## モチベーション
+
+[クラウド版の Dataform](https://cloud.google.com/dataform?hl=ja) （= Google Cloud のマネージドサービスとしての Dataform ） の「リリース構成」と「ワークフロー構成」は [Dataform CLI](https://github.com/dataform-co/dataform) で管理ができず、マネージドコンソールの画面からポチポチ駆動開発をするか、 [Terraform](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/dataform_repository_workflow_config) で管理するのが主流です。
+
+前者に関しては、変更履歴やレビュープロセスがなかったり、そもそも手作業が手間だったりという問題があります。一方の Terraform は一貫してコードベースで管理ができて便利な反面、 Dataform だけを管理したい場合には too much になりがちです。また Dataform のメンテナー（アナリティクスエンジニア等）と Google Cloud 全体のインフラ担当（ SRE 等）が別れているために、Dataform のワークフローの実行時間を 1 時間ずらしたいだけにも関わらず、インフラチームによる重厚な Terraform のレビュー・デプロイのプロセスを経ないと、ワークフローの変更ができない、といった状況もしばしば見受けられます。さらに、タグやテーブル構成など Terraform の定義に関わる変更が Dataform 側で発生するたびに手動で追従しなければならず、同期漏れのリスクが常にある、という問題もあります。
+
+これらの課題を解決すべく、このアクションでは Dataform のメンテナーが手軽に、冪等に、SQLX コードに近い場所で、 Dataform のワークフローをコードベースで管理する体験を提供します。
+
+*あの頃の [environments.json](https://youtu.be/KdxKP_eo8bc?si=XZ1x3z_1OKGBoNYX) を取り戻そう！*
+
+👉 より詳細については、私が記載した [Zenn 記事](https://zenn.dev/snhryt/articles/apply-dataform-workflows) をご参照ください。
+
+## 仕組み
+
+本ツールは、簡単に言うと「[Dataform REST API](https://docs.cloud.google.com/dataform/reference/rest) の Wrapper」です。裏では、 JSON の内容を読み取り、それを使っていい感じに API を叩く処理をしています。処理フロー全体としては、リリース構成の作成・更新 -> （ `compile` が true の場合）リリース構成のコンパイル -> ワークフロー構成の作成・更新という流れで処理が進みます。
+
+### リリース/ワークフロー構成の更新フロー
 
 ```mermaid
 flowchart LR
@@ -87,16 +99,14 @@ flowchart LR
     I -- No --> J
 ```
 
-リリース構成はワークフロー構成より先にデプロイされるため、同一 JSON 内での参照が安全に解決されます。
-
-既存のリリース構成では `gitCommitish` または `codeCompilationConfig` の変更時に `DELETE -> POST` を使います。既存のワークフロー構成では `invocationConfig` の変更時に同様の処理を行います。それ以外の更新は引き続き `PATCH` を使います。
+設定が immutable になっており、API 経由で更新ができない一部の内容（リリース構成における `git_ref` や `compile_override`、ワークフロー構成における `options` ）については、変更時に `PATCH` ではなく `DELETE -> POST` を実行します。
 
 > [!NOTE]
-> JSON ファイルを Single Source of Truth (SSoT) として運用する思想のため、 `sync_delete` オプションはデフォルトで有効化されています。このオプションが有効化されている場合、クラウド上に存在するが JSON に含まれないリリース構成およびワークフロー構成は**自動的に削除されます。**
+> JSON ファイルを Single Source of Truth として運用する思想のため、 `sync_delete` オプションはデフォルトで有効化されています。このオプションが有効化されている場合、クラウド上に存在するが JSON に含まれないリリース構成およびワークフロー構成は**自動的に削除されます。**
 >
 > この挙動を避けたい場合には `sync_delete: false` を指定してください。ただし、この場合は JSON ファイルとクラウド側で完全な同期が取れなくなる点にご注意ください。
 
-## リリース構成のコンパイルについて
+### リリース構成のコンパイルについて
 
 `compile: true` を指定すると、構成更新ステップの後で各リリース構成をコンパイルし、最新の `releaseCompilationResult` で release config を更新します。
 
@@ -231,7 +241,7 @@ CONFIG_FILE=examples/release_workflow_config_simple.json \
 WORKFLOW_SETTINGS=examples/workflow_settings.yaml \
 DO_COMPILE=false \
 DRY_RUN=true \
-uv run python -m apply_dataform_workflows.deploy
+uv run python -m apply_dataform_workflows.apply
 ```
 
 
@@ -244,7 +254,7 @@ Google Cloud 環境への apply （実際の API 呼び出しあり）:
 CONFIG_FILE=tests/release_workflow_config.json \
 WORKFLOW_SETTINGS=tests/workflow_settings.yaml \
 DO_COMPILE=false \
-uv run python -m apply_dataform_workflows.deploy
+uv run python -m apply_dataform_workflows.apply
 ```
 
 > [!NOTE]

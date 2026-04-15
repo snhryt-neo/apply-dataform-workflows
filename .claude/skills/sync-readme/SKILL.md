@@ -47,6 +47,17 @@ Read the diff carefully. For each hunk:
 
 **Wording changes matter.** If a sentence changed subtly (a `-` line replaced by a `+` line), update the target's corresponding sentence — do not leave the old translation if the source wording changed.
 
+## Language-specific differences (do not sync these)
+
+Some content intentionally differs between the two files. Do not overwrite or remove these when syncing.
+
+| Location | README.md (English) | README-ja.md (Japanese) |
+|----------|---------------------|-------------------------|
+| Zenn article link (end of Motivation section) | Appended with ` *(Japanese only — sorry, English speakers!)*` | No such note |
+
+When syncing ja→en: if the source adds or changes the Zenn article link line, preserve the English-only ` *(Japanese only — sorry, English speakers!)*` suffix in the target.
+When syncing en→ja: if the Zenn article link line changes, do not carry over the ` *(Japanese only ...)* ` suffix to the Japanese file.
+
 ## Step 4: Apply changes to the target
 
 For each diff hunk, find the corresponding location in the target file and edit it:
