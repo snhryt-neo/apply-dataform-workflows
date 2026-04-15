@@ -64,7 +64,7 @@
 
 [クラウド版の Dataform](https://cloud.google.com/dataform?hl=ja) （= Google Cloud のマネージドサービスとしての Dataform ） の「リリース構成」と「ワークフロー構成」は [Dataform CLI](https://github.com/dataform-co/dataform) で管理ができず、マネージドコンソールの画面からポチポチ駆動開発をするか、 [Terraform](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/dataform_repository_workflow_config) で管理するのが主流です。
 
-前者に関しては、変更履歴やレビュープロセスがなかったり、そもそも手作業が手間だったりという問題があります。一方の Terraform は一貫してコードベースで管理ができて便利な反面、 Dataform だけを管理したい場合には too much になりがちです。また Dataform のメンテナー（アナリティクスエンジニア等）と Google Cloud 全体のインフラ担当（ SRE 等）が別れているために、Dataform のワークフローの実行時間を 1 時間ずらしたいだけにも関わらず、インフラチームによる重厚な Terraform のレビュー・デプロイのプロセスを経ないと、ワークフローの変更ができない、といった状況もしばしば見受けられます。
+前者に関しては、変更履歴やレビュープロセスがなかったり、そもそも手作業が手間だったりという問題があります。一方の Terraform は一貫してコードベースで管理ができて便利な反面、 Dataform だけを管理したい場合には too much になりがちです。また Dataform のメンテナー（アナリティクスエンジニア等）と Google Cloud 全体のインフラ担当（ SRE 等）が別れているために、Dataform のワークフローの実行時間を 1 時間ずらしたいだけにも関わらず、インフラチームによる重厚な Terraform のレビュー・デプロイのプロセスを経ないと、ワークフローの変更ができない、といった状況もしばしば見受けられます。さらに、タグやテーブル構成など Terraform の定義に関わる変更が Dataform 側で発生するたびに手動で追従しなければならず、同期漏れのリスクが常にある、という問題もあります。
 
 これらの課題を解決すべく、このアクションでは Dataform のメンテナーが手軽に、冪等に、SQLX コードに近い場所で、 Dataform のワークフローをコードベースで管理する体験を提供します。
 
