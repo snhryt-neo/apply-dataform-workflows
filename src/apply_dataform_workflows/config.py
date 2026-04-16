@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ _ALIASES: dict[str, str] = {
     "full_refresh": "fullyRefreshIncrementalTablesEnabled",
 }
 
+_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 _PASSTHROUGH_KEYS = {"vars"}
 _MULTIREGION_LOCATION_MAP = {
     "us": "us-central1",
@@ -100,6 +102,10 @@ class ConfigLoader:
         for i, rc in enumerate(data.get("releaseConfigs", [])):
             if "id" not in rc:
                 raise ValueError(f"release_configs[{i}] is missing required field 'id'")
+            if not isinstance(rc["id"], str) or not _ID_PATTERN.match(rc["id"]):
+                raise ValueError(
+                    f"release_configs[{i}] id must match ^[a-z][a-z0-9_-]*$: {rc['id']!r}"
+                )
             rc_body = {k: v for k, v in rc.items() if k != "id"}
             ConfigLoader._set_git_commitish(rc_body, f"release_configs[{i}]")
             rc_body.setdefault("disabled", False)
@@ -110,6 +116,10 @@ class ConfigLoader:
             if "id" not in wc:
                 raise ValueError(
                     f"workflow_configs[{i}] is missing required field 'id'"
+                )
+            if not isinstance(wc["id"], str) or not _ID_PATTERN.match(wc["id"]):
+                raise ValueError(
+                    f"workflow_configs[{i}] id must match ^[a-z][a-z0-9_-]*$: {wc['id']!r}"
                 )
             if "releaseConfig" not in wc:
                 raise ValueError(

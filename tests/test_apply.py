@@ -43,6 +43,21 @@ class TestGitHubOutput:
         output = GitHubOutput(output_path="/dev/null", summary_path="/dev/null")
         output.set_output("key", "value")
 
+    def test_set_output_raises_on_newline_in_value(self):
+        output = GitHubOutput(output_path="/dev/null", summary_path="/dev/null")
+        with pytest.raises(ValueError, match="newlines"):
+            output.set_output("key", "bad\nvalue")
+
+    def test_set_output_raises_on_newline_in_key(self):
+        output = GitHubOutput(output_path="/dev/null", summary_path="/dev/null")
+        with pytest.raises(ValueError, match="'\\\\n' or '='"):
+            output.set_output("bad\nkey", "value")
+
+    def test_set_output_raises_on_equals_in_key(self):
+        output = GitHubOutput(output_path="/dev/null", summary_path="/dev/null")
+        with pytest.raises(ValueError, match="'\\\\n' or '='"):
+            output.set_output("bad=key", "value")
+
     def test_write_summary(self, tmp_path):
         summary_file = tmp_path / "summary"
         summary_file.write_text("")
