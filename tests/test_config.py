@@ -719,6 +719,47 @@ class TestConfigLoaderValidation:
         ):
             ConfigLoader.load(bad_file)
 
+    @pytest.mark.parametrize(
+        "bad_id",
+        ["Production", "0prod", "prod config", "prod\nid", "prod=id", "PROD"],
+    )
+    def test_release_config_invalid_id_raises(self, tmp_path, bad_id):
+        bad_file = tmp_path / "bad.json"
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": bad_id, "git_ref": "main"}],
+                }
+            )
+        )
+        with pytest.raises(ValueError, match=r"\^"):
+            ConfigLoader.load(bad_file)
+
+    @pytest.mark.parametrize(
+        "bad_id",
+        ["DailyRun", "1workflow", "daily run", "daily\nrun", "daily=run"],
+    )
+    def test_workflow_config_invalid_id_raises(self, tmp_path, bad_id):
+        bad_file = tmp_path / "bad.json"
+        bad_file.write_text(
+            json.dumps(
+                {
+                    "repository": "repo",
+                    "release_configs": [{"id": "prod", "git_ref": "main"}],
+                    "workflow_configs": [
+                        {
+                            "id": bad_id,
+                            "release_config": "prod",
+                            "targets": {"is_all": True},
+                        }
+                    ],
+                }
+            )
+        )
+        with pytest.raises(ValueError, match=r"\^"):
+            ConfigLoader.load(bad_file)
+
     def test_valid_config_passes_validation(self, fixtures_dir):
         config = ConfigLoader.load(fixtures_dir / "config_advanced.json")
         assert len(config.release_configs) == 2

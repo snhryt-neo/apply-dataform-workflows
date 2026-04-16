@@ -35,6 +35,14 @@ class GitHubOutput:
         )
 
     def set_output(self, key: str, value: str) -> None:
+        if "\n" in key or "=" in key:
+            raise ValueError(
+                f"GITHUB_OUTPUT key must not contain '\\n' or '=': {key!r}"
+            )
+        if "\n" in value:
+            raise ValueError(
+                f"GITHUB_OUTPUT value must not contain newlines: {value!r}"
+            )
         with open(self._output_path, "a") as f:
             f.write(f"{key}={value}\n")
 
