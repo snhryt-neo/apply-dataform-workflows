@@ -42,17 +42,20 @@
 
 ### 2. GitHub Actions のワークフローを設定
 
-> [!IMPORTANT]
-> このアクションには Google Cloud の認証は含まれません。事前に [`google-github-actions/auth`](https://github.com/google-github-actions/auth) で認証を済ませてください。
->
-> また、事前に Workload Identity Provider と、それに紐づけて impersonate する Google Cloud のサービスアカウントを作成・設定しておいてください。標準的には、そのサービスアカウントに `Dataform 管理者` (`roles/dataform.admin`) 相当の IAM 権限が必要です（[厳格な act-as モード](https://docs.cloud.google.com/dataform/docs/strict-act-as-mode) が有効な場合、実行用サービスアカウントに対する `サービスアカウント ユーザー` (`roles/iam.serviceAccountUser`) 権限も必要）。
-
 ```yaml
 - name: Apply Dataform release / workflow configurations
   uses: snhryt-neo/apply-dataform-workflows@v1
 ```
 
 👉 完全なワークフローの例は [こちら](examples/.github/workflows/apply-dataform-workflows.yml) をご参照ください。
+
+> [!WARNING]
+> すでに設定済みのリリース構成・ワークフロー構成が存在する場合、オプションを何も指定しないままアクションを実行すると **JSON で定義された内容で強制的に上書きされる**のでご注意ください。`dry_run: true` でプレビューを確認する、前の手順で現状に即した内容を JSON に記載するなど、利用いただく方自身で事故の予防をお願いします。
+
+> [!NOTE]
+> このアクションには Google Cloud の認証は含まれません。事前のステップで [`google-github-actions/auth`](https://github.com/google-github-actions/auth) を用いて認証を済ませてください。
+>
+> また、同アクションを利用するために Workload Identity Provider と、それに紐づけて impersonate する Google Cloud のサービスアカウントの作成・設定が必要になります。標準的には、そのサービスアカウントに `Dataform 管理者` (`roles/dataform.admin`) 相当の IAM 権限が必要となります（[厳格な act-as モード](https://docs.cloud.google.com/dataform/docs/strict-act-as-mode) が有効な場合、実行用サービスアカウントに対する `サービスアカウント ユーザー` (`roles/iam.serviceAccountUser`) 権限も必要）。
 
 ### 3. Google Cloud 側で変更が反映されていることを確認
 
@@ -74,7 +77,7 @@
 
 ## 仕組み
 
-本ツールは、簡単に言うと「[Dataform REST API](https://docs.cloud.google.com/dataform/reference/rest) の Wrapper」です。裏では、 JSON の内容を読み取り、それを使っていい感じに API を叩く処理をしています。処理フロー全体としては、リリース構成の作成・更新 -> （ `compile` が true の場合）リリース構成のコンパイル -> ワークフロー構成の作成・更新という流れで処理が進みます。
+本ツールは「[Dataform REST API](https://docs.cloud.google.com/dataform/reference/rest) の Wrapper」です。裏では、 JSON の内容を読み取り、それを使っていい感じに API を叩く処理をしています。処理フロー全体としては、リリース構成の作成・更新 -> （ `compile` が true の場合）リリース構成のコンパイル -> ワークフロー構成の作成・更新という流れで処理が進みます。
 
 ### リリース/ワークフロー構成の更新フロー
 
@@ -155,7 +158,7 @@ Dataform に連携される情報を常に最新にしておくために、`comp
 |-----------|:----:|------|
 | `$schema` | | エディタ補完用の JSON Schema URL |
 | `repository` | ✅ | Dataform リポジトリ名 |
-| `release_configs` | ✅ | リリース構成オブジェクトの配列 |
+| `release_configs` | ✅^[リリース構成・ワークフロー構成を全削除するときのためにハードな Required 設定にはしていない。それ以外の場面では原則必須。] | リリース構成オブジェクトの配列 |
 | `workflow_configs` | | ワークフロー構成オブジェクトの配列 |
 
 <details>

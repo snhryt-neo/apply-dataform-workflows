@@ -42,17 +42,20 @@
 
 ### 2. Set up your workflow
 
-> [!IMPORTANT]
-> This action does not handle Google Cloud authentication. Use [`google-github-actions/auth`](https://github.com/google-github-actions/auth) beforehand.
->
-> Also, create and configure your Workload Identity Provider and the Google Cloud service account to impersonate. In the standard case, that service account should have IAM permissions equivalent to Dataform Admin (`roles/dataform.admin`) (if [strict act-as mode](https://docs.cloud.google.com/dataform/docs/strict-act-as-mode) is enabled, `Service Account User` (`roles/iam.serviceAccountUser`) on the execution service account is also required).
-
 ```yaml
 - name: Apply Dataform release / workflow configurations
   uses: snhryt-neo/apply-dataform-workflows@v1
 ```
 
 👉 See [here](examples/.github/workflows/apply-dataform-workflows.yml) for a full workflow example.
+
+> [!WARNING]
+> If you already have release or workflow configurations set up, running the action without specifying any options will **forcibly overwrite them with the contents defined in the JSON**. To prevent accidents, use `dry_run: true` to preview changes, or ensure the JSON reflects the current state before running.
+
+> [!NOTE]
+> This action does not handle Google Cloud authentication. Use [`google-github-actions/auth`](https://github.com/google-github-actions/auth) in a prior step to authenticate.
+>
+> Also, you need to create and configure a Workload Identity Provider and the Google Cloud service account to impersonate. In the standard case, that service account requires IAM permissions equivalent to Dataform Admin (`roles/dataform.admin`) (if [strict act-as mode](https://docs.cloud.google.com/dataform/docs/strict-act-as-mode) is enabled, `Service Account User` (`roles/iam.serviceAccountUser`) on the execution service account is also required).
 
 ### 3. Confirm changes are reflected in Google Cloud
 
@@ -74,7 +77,7 @@ To solve these issues, this action provides Dataform maintainers with a lightwei
 
 ## How it works
 
-This tool is essentially a wrapper around the [Dataform REST API](https://docs.cloud.google.com/dataform/reference/rest). Under the hood, it reads the JSON config and calls the API accordingly. The overall processing flow is: create/update release configs → (if `compile` is true) compile release configs → create/update workflow configs.
+This tool is a wrapper around the [Dataform REST API](https://docs.cloud.google.com/dataform/reference/rest). Under the hood, it reads the JSON config and calls the API accordingly. The overall processing flow is: create/update release configs → (if `compile` is true) compile release configs → create/update workflow configs.
 
 ### Release / Workflow Configurations Update Flow
 
@@ -155,7 +158,7 @@ Add `"$schema": "https://raw.githubusercontent.com/snhryt-neo/apply-dataform-wor
 |-------|:--------:|-------------|
 | `$schema` | | URL to JSON Schema for editor autocompletion |
 | `repository` | ✅ | Dataform repository name |
-| `release_configs` | ✅ | Array of release configuration objects |
+| `release_configs` | ✅^[Not set as a hard Required to allow full deletion of all release and workflow configurations. Treat as required in all other cases.] | Array of release configuration objects |
 | `workflow_configs` | | Array of workflow configuration objects |
 
 <details>
