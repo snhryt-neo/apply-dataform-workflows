@@ -158,8 +158,10 @@ Add `"$schema": "https://raw.githubusercontent.com/snhryt-neo/apply-dataform-wor
 |-------|:--------:|-------------|
 | `$schema` | | URL to JSON Schema for editor autocompletion |
 | `repository` | ✅ | Dataform repository name |
-| `release_configs` | ✅^[Not set as a hard Required to allow full deletion of all release and workflow configurations. Treat as required in all other cases.] | Array of release configuration objects |
+| `release_configs` | ✅[^1] | Array of release configuration objects |
 | `workflow_configs` | | Array of workflow configuration objects |
+
+[^1]: Not set as a hard Required to allow full deletion of all release and workflow configurations. Treat as required in all other cases.
 
 <details>
 
