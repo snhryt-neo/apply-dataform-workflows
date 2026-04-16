@@ -5,12 +5,12 @@ description = "Apply Dataform release/workflow configurations from a JSON SSoT f
 requires-python = "==3.12.*"
 dependencies = [
     "google-auth==2.49.1",
-    "requests==2.32.5",
+    "requests==2.33.0",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest==9.0.2",
+    "pytest==9.0.3",
 ]
 
 [build-system]
