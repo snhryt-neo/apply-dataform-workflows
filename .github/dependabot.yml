@@ -7,3 +7,10 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Asia/Tokyo"
+  - package-ecosystem: "github-actions"
+    directory: "/examples/.github/workflows"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
