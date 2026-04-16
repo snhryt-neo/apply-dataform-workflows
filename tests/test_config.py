@@ -881,8 +881,7 @@ class TestResolveWorkflowSettings:
     def test_handles_colon_in_value(self, tmp_path):
         yaml_file = tmp_path / "workflow_settings.yaml"
         yaml_file.write_text(
-            "defaultProject: my-project:suffix\n"
-            "defaultLocation: us-central1\n"
+            "defaultProject: my-project:suffix\ndefaultLocation: us-central1\n"
         )
         project_id, location, _ = ConfigLoader.resolve_workflow_settings(
             yaml_file, None, None
