@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 
 _ALIASES: dict[str, str] = {
     "schedule": "cronSchedule",
@@ -191,15 +193,11 @@ class ConfigLoader:
 
     @staticmethod
     def _read_yaml_field(path: Path) -> dict[str, str]:
-        result = {}
         with open(path) as f:
-            for line in f:
-                line = line.strip()
-                if ":" in line:
-                    key, _, value = line.partition(":")
-                    value = value.strip().strip("'\"")
-                    result[key.strip()] = value
-        return result
+            data = yaml.safe_load(f)
+        if not isinstance(data, dict):
+            return {}
+        return {k: str(v) for k, v in data.items() if v is not None}
 
     @staticmethod
     def _set_git_commitish(body: dict[str, Any], path: str) -> None:

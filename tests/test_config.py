@@ -865,3 +865,26 @@ class TestResolveWorkflowSettings:
         )
         # When both project_id and location are provided, YAML is not read
         assert default_dataset is None
+
+    def test_ignores_inline_comments_in_yaml_values(self, tmp_path):
+        yaml_file = tmp_path / "workflow_settings.yaml"
+        yaml_file.write_text(
+            "defaultProject: my-project  # production\n"
+            "defaultLocation: us-central1  # region: primary\n"
+        )
+        project_id, location, default_dataset = ConfigLoader.resolve_workflow_settings(
+            yaml_file, None, None
+        )
+        assert project_id == "my-project"
+        assert location == "us-central1"
+
+    def test_handles_colon_in_value(self, tmp_path):
+        yaml_file = tmp_path / "workflow_settings.yaml"
+        yaml_file.write_text(
+            "defaultProject: my-project:suffix\n"
+            "defaultLocation: us-central1\n"
+        )
+        project_id, location, _ = ConfigLoader.resolve_workflow_settings(
+            yaml_file, None, None
+        )
+        assert project_id == "my-project:suffix"

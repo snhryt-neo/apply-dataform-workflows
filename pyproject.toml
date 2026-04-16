@@ -5,6 +5,7 @@ description = "Apply Dataform release/workflow configurations from a JSON SSoT f
 requires-python = "==3.12.*"
 dependencies = [
     "google-auth==2.49.1",
+    "pyyaml==6.0.1",
     "requests==2.33.0",
 ]
 
