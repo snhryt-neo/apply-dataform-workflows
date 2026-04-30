@@ -78,6 +78,7 @@ class GitHubOutput:
             "skipped": "—",
             "dry_run": "🔵",
             "deleted": "🗑️",
+            "no_changes": "✓",
         }
         for r in self.results:
             icon = status_icons.get(r.status, "")
@@ -93,6 +94,14 @@ def _build_update_mask(body: dict, allowed_fields: tuple[str, ...]) -> str:
 
 def _filter_body_fields(body: dict, allowed_fields: tuple[str, ...]) -> dict:
     return {field: body[field] for field in allowed_fields if field in body}
+
+
+def _field_unchanged(existing: dict, desired: dict, key: str) -> bool:
+    e, d = existing.get(key), desired.get(key)
+    # GCP omits boolean fields from GET responses when they equal their default (False).
+    if e is None and isinstance(d, bool):
+        e = False
+    return e == d
 
 
 def _get_existing_resource(
@@ -115,10 +124,33 @@ def _release_config_requires_recreate(existing: dict, desired: dict) -> bool:
     ) != desired.get("codeCompilationConfig")
 
 
+_INVOCATION_CONFIG_API_DEFAULTS: dict[str, object] = {
+    "transitiveDependenciesIncluded": False,
+    "transitiveDependentsIncluded": False,
+    "fullyRefreshIncrementalTablesEnabled": False,
+    "queryPriority": "QUERY_PRIORITY_UNSPECIFIED",
+}
+
+
+def _normalize_invocation_config(invoc: dict, reference: dict) -> dict:
+    # The GCP API injects extra fields (e.g. queryPriority, bool flags) into
+    # invocationConfig on GET. Strip them from `invoc` when they are absent
+    # from `reference` and carry the API default, so the comparison does not
+    # trigger a false recreate on unchanged configs.
+    return {
+        k: v
+        for k, v in invoc.items()
+        if k in reference or v != _INVOCATION_CONFIG_API_DEFAULTS.get(k)
+    }
+
+
 def _workflow_config_requires_recreate(existing: dict, desired: dict) -> bool:
     # invocationConfig follows the same pattern: detect the change before PATCH
     # so the recreate path is deterministic and visible in the apply flow.
-    return existing.get("invocationConfig") != desired.get("invocationConfig")
+    desired_invoc = desired.get("invocationConfig") or {}
+    existing_invoc = existing.get("invocationConfig") or {}
+    normalized = _normalize_invocation_config(existing_invoc, desired_invoc)
+    return normalized != desired_invoc
 
 
 def deploy_release_configs(
@@ -161,6 +193,7 @@ def deploy_release_configs(
                 continue
 
             existing = _get_existing_resource(client, resource_path)
+            status = "success"
             if existing is None:
                 print(f"  Creating releaseConfig: {rc.id}")
                 client.post(
@@ -185,7 +218,6 @@ def deploy_release_configs(
                 created.append(rc.id)
                 detail = "Recreated"
             else:
-                print(f"  Updating releaseConfig: {rc.id}")
                 patch_body = _filter_body_fields(
                     rc.body,
                     (
@@ -195,23 +227,23 @@ def deploy_release_configs(
                         "disabled",
                     ),
                 )
-                update_mask = _build_update_mask(
-                    patch_body,
-                    (
-                        "cronSchedule",
-                        "timeZone",
-                        "disabled",
-                    ),
-                )
-                client.patch(
-                    resource_path, patch_body, params={"updateMask": update_mask}
-                )
-                print(f"  Updated releaseConfig: {rc.id}")
-                updated.append(rc.id)
-                detail = "Updated"
+                patch_fields = ("cronSchedule", "timeZone", "disabled")
+                if all(_field_unchanged(existing, patch_body, f) for f in patch_fields):
+                    print(f"  releaseConfig '{rc.id}' is up to date")
+                    status = "no_changes"
+                    detail = "No changes"
+                else:
+                    print(f"  Updating releaseConfig: {rc.id}")
+                    update_mask = _build_update_mask(patch_body, patch_fields)
+                    client.patch(
+                        resource_path, patch_body, params={"updateMask": update_mask}
+                    )
+                    print(f"  Updated releaseConfig: {rc.id}")
+                    updated.append(rc.id)
+                    detail = "Updated"
 
             output.add_result(
-                StepResult("1/3", f"releaseConfig: {rc.id}", "success", detail)
+                StepResult("1/3", f"releaseConfig: {rc.id}", status, detail)
             )
         except ApiError as e:
             print(f"::error::Failed to deploy releaseConfig '{rc.id}': {e.message}")
@@ -323,7 +355,6 @@ def deploy_workflow_configs(
                         "releaseConfig",
                         "cronSchedule",
                         "timeZone",
-                        "invocationConfig",
                         "disabled",
                     ),
                 )
@@ -341,6 +372,7 @@ def deploy_workflow_configs(
                 continue
 
             existing = _get_existing_resource(client, resource_path)
+            status = "success"
             if existing is None:
                 print(f"  Creating workflowConfig: {wc.id}")
                 client.post(
@@ -364,24 +396,24 @@ def deploy_workflow_configs(
                 created.append(wc.id)
                 detail = "Recreated"
             else:
-                print(f"  Updating workflowConfig: {wc.id}")
-                update_mask = _build_update_mask(
-                    body,
-                    (
-                        "releaseConfig",
-                        "cronSchedule",
-                        "timeZone",
-                        "invocationConfig",
-                        "disabled",
-                    ),
-                )
-                client.patch(resource_path, body, params={"updateMask": update_mask})
-                print(f"  Updated workflowConfig: {wc.id}")
-                updated.append(wc.id)
-                detail = "Updated"
+                # invocationConfig is immutable via PATCH; only compare/patch the mutable fields.
+                patch_fields = ("releaseConfig", "cronSchedule", "timeZone", "disabled")
+                if all(_field_unchanged(existing, body, f) for f in patch_fields):
+                    print(f"  workflowConfig '{wc.id}' is up to date")
+                    status = "no_changes"
+                    detail = "No changes"
+                else:
+                    print(f"  Updating workflowConfig: {wc.id}")
+                    update_mask = _build_update_mask(body, patch_fields)
+                    client.patch(
+                        resource_path, body, params={"updateMask": update_mask}
+                    )
+                    print(f"  Updated workflowConfig: {wc.id}")
+                    updated.append(wc.id)
+                    detail = "Updated"
 
             output.add_result(
-                StepResult("3/3", f"workflowConfig: {wc.id}", "success", detail)
+                StepResult("3/3", f"workflowConfig: {wc.id}", status, detail)
             )
         except ApiError as e:
             print(f"::error::Failed to deploy workflowConfig '{wc.id}': {e.message}")
