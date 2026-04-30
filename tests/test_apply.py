@@ -152,10 +152,11 @@ class TestDeployReleaseConfigs:
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        # Use an outdated cronSchedule so the update path is exercised.
         mock_client.get.return_value = _json_response(
             {
                 "gitCommitish": "main",
-                "cronSchedule": "0 0 * * *",
+                "cronSchedule": "OLD",
                 "timeZone": "Asia/Tokyo",
                 "disabled": False,
             }
@@ -250,10 +251,11 @@ class TestDeployReleaseConfigs:
             summary_path=str(tmp_path / "summary"),
         )
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        # Use an outdated cronSchedule so the config is detected as changed.
         mock_client.get.return_value = _json_response(
             {
                 "gitCommitish": "main",
-                "cronSchedule": "0 0 * * *",
+                "cronSchedule": "OLD",
                 "timeZone": "Asia/Tokyo",
                 "disabled": False,
             }
@@ -362,7 +364,8 @@ class TestDeployReleaseConfigs:
             },
             "disabled": False,
         }
-        assert mock_client.method_calls[2:5] == [
+        # production is up to date (no PATCH), so development is at index [1].
+        assert mock_client.method_calls[1:4] == [
             call.get("/releaseConfigs/development"),
             call.delete("/releaseConfigs/development"),
             call.post(
@@ -400,10 +403,11 @@ class TestDeployReleaseConfigs:
         from apply_dataform_workflows.apply import deploy_release_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        # Use an outdated cronSchedule to trigger PATCH so the body can be inspected.
         mock_client.get.return_value = _json_response(
             {
                 "gitCommitish": "main",
-                "cronSchedule": "0 0 * * *",
+                "cronSchedule": "OLD",
                 "timeZone": "Asia/Tokyo",
                 "disabled": False,
             }
@@ -435,10 +439,11 @@ class TestDeployReleaseConfigs:
             """
         )
         config = ConfigLoader.load(config_file)
+        # existing has disabled=False so the change to True triggers a PATCH.
         mock_client.get.return_value = _json_response(
             {
                 "gitCommitish": "main",
-                "disabled": True,
+                "disabled": False,
             }
         )
 
@@ -472,10 +477,11 @@ class TestDeployReleaseConfigs:
             """
         )
         config = ConfigLoader.load(config_file)
+        # existing has disabled=True so the change to False (default) triggers a PATCH.
         mock_client.get.return_value = _json_response(
             {
                 "gitCommitish": "main",
-                "disabled": False,
+                "disabled": True,
             }
         )
 
@@ -575,10 +581,11 @@ class TestDeployWorkflowConfigs:
         from apply_dataform_workflows.apply import deploy_workflow_configs
 
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        # Use an outdated cronSchedule so the update path is exercised.
         mock_client.get.return_value = _json_response(
             {
                 "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
-                "cronSchedule": "0 3 * * *",
+                "cronSchedule": "0 0 * * *",
                 "timeZone": "Asia/Tokyo",
                 "invocationConfig": {},
                 "disabled": False,
@@ -597,9 +604,7 @@ class TestDeployWorkflowConfigs:
         assert body["disabled"] is False
         assert "id" not in body
         assert mock_client.patch.call_args.kwargs["params"] == {
-            "updateMask": (
-                "releaseConfig,cronSchedule,timeZone,invocationConfig,disabled"
-            )
+            "updateMask": "releaseConfig,cronSchedule,timeZone,disabled"
         }
         assert github_output.results[0].detail == "Updated"
 
@@ -636,6 +641,7 @@ class TestDeployWorkflowConfigs:
             """
         )
         config = ConfigLoader.load(config_file)
+        # invocationConfig matches desired — mutable fields also unchanged → no recreate, no PATCH.
         mock_client.get.return_value = _json_response(
             {
                 "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
@@ -650,17 +656,9 @@ class TestDeployWorkflowConfigs:
 
         deploy_workflow_configs(mock_client, config, False, github_output)
 
-        body = mock_client.patch.call_args.args[1]
-        assert body["invocationConfig"] == {
-            "includedTargets": [{"name": "users"}],
-            "transitiveDependenciesIncluded": True,
-            "fullyRefreshIncrementalTablesEnabled": True,
-        }
-        assert body["disabled"] is False
-        assert body["invocationConfig"]["includedTargets"][0]["name"] == "users"
-        assert mock_client.patch.call_args.kwargs["params"] == {
-            "updateMask": "releaseConfig,invocationConfig,disabled"
-        }
+        mock_client.delete.assert_not_called()
+        mock_client.patch.assert_not_called()
+        assert github_output.results[0].detail == "No changes"
 
     def test_deploy_workflow_supports_on_demand_without_schedule(
         self, mock_client, github_output, tmp_path
@@ -701,14 +699,10 @@ class TestDeployWorkflowConfigs:
 
         deploy_workflow_configs(mock_client, config, False, github_output)
 
-        body = mock_client.patch.call_args.args[1]
-        assert "cronSchedule" not in body
-        assert "timeZone" not in body
-        assert body["invocationConfig"] == {"includedTags": ["daily"]}
-        assert body["disabled"] is False
-        assert mock_client.patch.call_args.kwargs["params"] == {
-            "updateMask": "releaseConfig,invocationConfig,disabled"
-        }
+        # All mutable fields match existing — no recreate, no PATCH needed.
+        mock_client.delete.assert_not_called()
+        mock_client.patch.assert_not_called()
+        assert github_output.results[0].detail == "No changes"
 
     def test_dry_run_records_result(self, mock_client, github_output, fixtures_dir):
         from apply_dataform_workflows.apply import deploy_workflow_configs
@@ -753,10 +747,11 @@ class TestDeployWorkflowConfigs:
             summary_path=str(tmp_path / "summary"),
         )
         config = ConfigLoader.load(fixtures_dir / "config_simple.json")
+        # Use an outdated cronSchedule so the config is detected as changed.
         mock_client.get.return_value = _json_response(
             {
                 "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
-                "cronSchedule": "0 3 * * *",
+                "cronSchedule": "0 0 * * *",
                 "timeZone": "Asia/Tokyo",
                 "invocationConfig": {},
                 "disabled": False,
@@ -878,6 +873,164 @@ class TestDeployWorkflowConfigs:
             ),
         ]
         assert github_output.results[0].status == "success"
+        assert github_output.results[0].detail == "Recreated"
+
+    def test_does_not_recreate_when_api_injects_bool_defaults_into_invocation_config(
+        self, mock_client, github_output, tmp_path
+    ):
+        """Second run must not recreate when GCP API adds false-default bool fields."""
+        from apply_dataform_workflows.apply import deploy_workflow_configs
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            """
+            {
+              "repository": "repo",
+              "release_configs": [{"id": "production", "git_ref": "main"}],
+              "workflow_configs": [
+                {
+                  "id": "daily",
+                  "release_config": "production",
+                  "targets": {"tags": ["daily"]}
+                }
+              ]
+            }
+            """
+        )
+        config = ConfigLoader.load(config_file)
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "invocationConfig": {
+                    "includedTags": ["daily"],
+                    "transitiveDependenciesIncluded": False,
+                    "transitiveDependentsIncluded": False,
+                    "fullyRefreshIncrementalTablesEnabled": False,
+                },
+                "disabled": False,
+            }
+        )
+
+        deploy_workflow_configs(mock_client, config, False, github_output)
+
+        mock_client.delete.assert_not_called()
+        assert github_output.results[0].detail == "No changes"
+
+    def test_does_not_recreate_when_api_injects_query_priority_into_invocation_config(
+        self, mock_client, github_output, tmp_path
+    ):
+        """GCP injects queryPriority: QUERY_PRIORITY_UNSPECIFIED; must not cause recreate."""
+        from apply_dataform_workflows.apply import deploy_workflow_configs
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            """
+            {
+              "repository": "repo",
+              "release_configs": [{"id": "production", "git_ref": "main"}],
+              "workflow_configs": [
+                {
+                  "id": "daily",
+                  "release_config": "production",
+                  "targets": {"tags": ["daily"]}
+                }
+              ]
+            }
+            """
+        )
+        config = ConfigLoader.load(config_file)
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "invocationConfig": {
+                    "includedTags": ["daily"],
+                    "queryPriority": "QUERY_PRIORITY_UNSPECIFIED",
+                },
+                "disabled": False,
+            }
+        )
+
+        deploy_workflow_configs(mock_client, config, False, github_output)
+
+        mock_client.delete.assert_not_called()
+        assert github_output.results[0].detail == "No changes"
+
+    def test_does_not_recreate_when_api_injects_all_defaults_into_empty_invocation_config(
+        self, mock_client, github_output, tmp_path
+    ):
+        """is_all target produces empty invocationConfig; API defaults must not cause recreate."""
+        from apply_dataform_workflows.apply import deploy_workflow_configs
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            """
+            {
+              "repository": "repo",
+              "release_configs": [{"id": "production", "git_ref": "main"}],
+              "workflow_configs": [
+                {
+                  "id": "all",
+                  "release_config": "production",
+                  "targets": {"is_all": true}
+                }
+              ]
+            }
+            """
+        )
+        config = ConfigLoader.load(config_file)
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "invocationConfig": {
+                    "queryPriority": "QUERY_PRIORITY_UNSPECIFIED",
+                },
+                "disabled": False,
+            }
+        )
+
+        deploy_workflow_configs(mock_client, config, False, github_output)
+
+        mock_client.delete.assert_not_called()
+        assert github_output.results[0].detail == "No changes"
+
+    def test_recreates_when_invocation_config_bool_field_explicitly_set_to_true(
+        self, mock_client, github_output, tmp_path
+    ):
+        """If desired sets a bool field to true, changing it to false must trigger recreate."""
+        from apply_dataform_workflows.apply import deploy_workflow_configs
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            """
+            {
+              "repository": "repo",
+              "release_configs": [{"id": "production", "git_ref": "main"}],
+              "workflow_configs": [
+                {
+                  "id": "daily",
+                  "release_config": "production",
+                  "targets": {"tags": ["daily"]},
+                  "options": {"include_dependencies": true}
+                }
+              ]
+            }
+            """
+        )
+        config = ConfigLoader.load(config_file)
+        mock_client.get.return_value = _json_response(
+            {
+                "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
+                "invocationConfig": {
+                    "includedTags": ["daily"],
+                    "transitiveDependenciesIncluded": False,
+                },
+                "disabled": False,
+            }
+        )
+
+        deploy_workflow_configs(mock_client, config, False, github_output)
+
+        mock_client.delete.assert_called_once()
         assert github_output.results[0].detail == "Recreated"
 
     def test_records_failure_when_workflow_recreate_fails(
@@ -1103,11 +1256,12 @@ class TestDeployWorkflowConfigs:
             """
         )
         config = ConfigLoader.load(config_file)
+        # existing has disabled=False so the change to True triggers a PATCH.
         mock_client.get.return_value = _json_response(
             {
                 "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
                 "invocationConfig": {"includedTags": ["daily"]},
-                "disabled": True,
+                "disabled": False,
             }
         )
 
@@ -1119,7 +1273,7 @@ class TestDeployWorkflowConfigs:
             "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
         }
         assert mock_client.patch.call_args.kwargs["params"] == {
-            "updateMask": "releaseConfig,invocationConfig,disabled"
+            "updateMask": "releaseConfig,disabled"
         }
 
     def test_workflow_config_without_disabled_defaults_disabled_and_update_mask(
@@ -1151,11 +1305,12 @@ class TestDeployWorkflowConfigs:
             """
         )
         config = ConfigLoader.load(config_file)
+        # existing has disabled=True so the change to False (default) triggers a PATCH.
         mock_client.get.return_value = _json_response(
             {
                 "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
                 "invocationConfig": {"includedTags": ["daily"]},
-                "disabled": False,
+                "disabled": True,
             }
         )
 
@@ -1167,7 +1322,7 @@ class TestDeployWorkflowConfigs:
             "releaseConfig": f"{mock_client.parent}/releaseConfigs/production",
         }
         assert mock_client.patch.call_args.kwargs["params"] == {
-            "updateMask": "releaseConfig,invocationConfig,disabled"
+            "updateMask": "releaseConfig,disabled"
         }
 
 
