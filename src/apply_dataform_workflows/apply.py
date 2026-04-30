@@ -405,7 +405,9 @@ def deploy_workflow_configs(
                 else:
                     print(f"  Updating workflowConfig: {wc.id}")
                     update_mask = _build_update_mask(body, patch_fields)
-                    client.patch(resource_path, body, params={"updateMask": update_mask})
+                    client.patch(
+                        resource_path, body, params={"updateMask": update_mask}
+                    )
                     print(f"  Updated workflowConfig: {wc.id}")
                     updated.append(wc.id)
                     detail = "Updated"
